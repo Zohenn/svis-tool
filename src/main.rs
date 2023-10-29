@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
+use core::output::print_file_info;
 use std::env;
 
-use crate::core::parser::parse_file_by_path;
+use crate::core::{analyzer::calculate_size_by_file, parser::parse_file_by_path};
 
 mod core;
 
@@ -10,10 +11,11 @@ fn main() -> Result<()> {
 
     match args.len() {
         2 => {
-            println!("{}", args[1]);
-            let mapping = parse_file_by_path(&args[1])?;
+            let (file_contents, mapping) = parse_file_by_path(&args[1])?;
 
-            println!("{:?}", mapping.mappings().last());
+            let info = calculate_size_by_file(&file_contents, &mapping);
+
+            print_file_info(&mapping, &info);
 
             Ok(())
         }

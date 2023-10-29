@@ -6,7 +6,7 @@ use anyhow::{anyhow, Context, Result};
 
 use super::vlq::vlq_decode;
 
-pub fn parse_file_by_path(path: &str) -> Result<SourceMapping> {
+pub fn parse_file_by_path(path: &str) -> Result<(String, SourceMapping)> {
     let contents = fs::read_to_string(path)?;
 
     let last_line = contents
@@ -15,9 +15,13 @@ pub fn parse_file_by_path(path: &str) -> Result<SourceMapping> {
         .next()
         .ok_or_else(|| anyhow!("File {path} is empty."))?;
 
-    let raw_source_mapping = parse_raw_source_mapping(path, last_line)?;
+    let mut raw_source_mapping = parse_raw_source_mapping(path, last_line)?;
+    raw_source_mapping.file = String::from(path); // TODO
 
-    SourceMapping::from_raw(raw_source_mapping)
+    let mut source_mapping = SourceMapping::from_raw(raw_source_mapping)?;
+    source_mapping.source_map_len = last_line.len() as u64;
+
+    Ok((contents, source_mapping))
 }
 
 #[allow(dead_code)]
@@ -75,6 +79,26 @@ impl Mapping {
             src_column: 0,
         }
     }
+
+    pub fn gen_line(&self) -> u32 {
+        self.gen_line
+    }
+
+    pub fn gen_column(&self) -> u32 {
+        self.gen_column
+    }
+
+    pub fn src_file(&self) -> u32 {
+        self.src_file
+    }
+
+    pub fn src_line(&self) -> u32 {
+        self.src_line
+    }
+
+    pub fn src_column(&self) -> u32 {
+        self.src_column
+    }
 }
 
 impl Default for Mapping {
@@ -83,7 +107,7 @@ impl Default for Mapping {
     }
 }
 
-static EMPTY_MAPPING: Mapping = Mapping::const_default();
+pub static EMPTY_MAPPING: Mapping = Mapping::const_default();
 
 #[derive(Debug)]
 pub struct SourceMapping {
@@ -92,6 +116,8 @@ pub struct SourceMapping {
     sources: Vec<String>,
     names: Vec<String>,
     mappings: Vec<Mapping>,
+    // Field not present in source JSON, but needed for presenting meaningful results
+    source_map_len: u64,
 }
 
 impl SourceMapping {
@@ -113,6 +139,10 @@ impl SourceMapping {
 
     pub fn mappings(&self) -> &[Mapping] {
         &self.mappings
+    }
+
+    pub fn source_map_len(&self) -> u64 {
+        self.source_map_len
     }
 
     fn from_raw(raw_mapping: RawSourceMapping) -> Result<Self> {
@@ -145,6 +175,7 @@ impl SourceMapping {
             sources: raw_mapping.sources,
             names: raw_mapping.names,
             mappings,
+            source_map_len: 0,
         })
     }
 }

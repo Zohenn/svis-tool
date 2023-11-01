@@ -2,9 +2,7 @@ use anyhow::{anyhow, Result};
 
 const ALPHABET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-/***
-* This function works only for sourcemap VLQ values (probably).
-*/
+// This function works only for sourcemap VLQ values.
 pub fn vlq_decode(base64_str: &str) -> Result<[i32; 4]> {
     if base64_str.is_empty() {
         return Ok([0; 4]);
@@ -20,17 +18,25 @@ pub fn vlq_decode(base64_str: &str) -> Result<[i32; 4]> {
     };
 
     let mut vlqs: Vec<Vec<i8>> = vec![];
-    let mut current_vlq: Vec<i8> = vec![];
+    let mut current_vlq: usize = 0;
+    let mut vlq_sequence_ended = true;
 
     for raw_value in base64_decoded.iter() {
-        current_vlq.push(*raw_value as i8);
+        if vlq_sequence_ended {
+            vlqs.push(vec![]);
+            vlq_sequence_ended = false;
+        }
+
+        vlqs[current_vlq].push(*raw_value as i8);
+
         if (raw_value & 0b100000) == 0 {
-            vlqs.push(current_vlq.clone());
-            current_vlq.clear();
+            // MSB decides whether this octet is the last octet of this number.
+            current_vlq += 1;
+            vlq_sequence_ended = true;
         }
     }
 
-    if !current_vlq.is_empty() {
+    if !vlq_sequence_ended {
         return Err(anyhow!("Last VLQ sequence never ended."));
     }
 
@@ -50,7 +56,8 @@ pub fn vlq_decode(base64_str: &str) -> Result<[i32; 4]> {
         for (index, vlq_val) in vlq.into_iter().enumerate().rev() {
             let mut vlq_value = *vlq_val as i32;
             if index == 0 {
-                negative = (vlq_value & 1) == 1;
+                // First value in VLQ sequence decides whether end number is positive or negative.
+                negative = (vlq_value & 1) == 1; // Number is negative if LSB is 1.
                 vlq_value >>= 1;
                 value <<= 4;
                 value |= vlq_value & 0b1111;

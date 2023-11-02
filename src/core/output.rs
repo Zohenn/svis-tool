@@ -1,16 +1,26 @@
 use console::Style;
 
-use super::{analyzer::SourceMappingFileInfo, parser::SourceMapping};
+use super::{
+    analyzer::{SourceMappingFileInfo, SourceMappingInfo},
+    parser::SourceMapping,
+};
 
-pub fn print_file_info(mapping: &SourceMapping, info: &[SourceMappingFileInfo]) {
+pub fn print_file_info(mapping: &SourceMapping, info: &SourceMappingInfo) {
     let file_style = Style::new().bold();
     let highlight_style = Style::new().cyan();
     let highlight_style2 = Style::new().green();
 
+    if mapping.is_empty() {
+        println!(
+            "File {} contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty)",
+            file_style.apply_to(mapping.file())
+        );
+        return;
+    }
+
     let sources_root = get_sources_root(mapping);
 
-    let source_file_meta = std::fs::metadata(mapping.file()).unwrap();
-    let source_file_len = source_file_meta.len() - mapping.source_map_len();
+    let source_file_len = mapping.source_file_len() - mapping.source_map_len();
 
     println!(
         "File {}, total size {}.",
@@ -22,21 +32,22 @@ pub fn print_file_info(mapping: &SourceMapping, info: &[SourceMappingFileInfo]) 
         file_style.apply_to(sources_root)
     );
 
-    let mut info = info.iter().collect::<Vec<&SourceMappingFileInfo>>();
-    info.sort_by_key(|i| i.bytes);
+    let mut info_by_file = info
+        .info_by_file
+        .iter()
+        .collect::<Vec<&SourceMappingFileInfo>>();
+    info_by_file.sort_by_key(|i| i.bytes);
 
-    let mut sum_bytes = 0u64;
-
-    for info in info.iter().rev() {
+    for info in info_by_file.iter().rev() {
         println!(
             "- {}, size {} ({})",
             file_style.apply_to(without_relative_part(info.file_name)),
             highlight_style.apply_to(format_bytes(info.bytes as u64)),
             highlight_style2.apply_to(format_percentage(info.bytes as u64, source_file_len)),
         );
-
-        sum_bytes += info.bytes as u64;
     }
+
+    let sum_bytes = info.sum_bytes as u64;
 
     println!(
         "Total: {} ({})",
@@ -64,10 +75,8 @@ fn get_sources_root(mapping: &SourceMapping) -> String {
         .first()
         .unwrap()
         .split('/')
-        .fold(
-            0,
-            |count, part| if part == ".." { count + 1 } else { count },
-        );
+        .take_while(|part| part == &"..")
+        .count();
 
     // TODO: This looks like crap even more
     mapping

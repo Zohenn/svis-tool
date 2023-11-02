@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use super::vlq::vlq_decode;
 
 pub fn parse_file_by_path(path: &str) -> Result<(String, SourceMapping)> {
+    let file_meta = std::fs::metadata(path)?;
     let contents = fs::read_to_string(path)?;
 
     let last_line = contents
@@ -19,6 +20,7 @@ pub fn parse_file_by_path(path: &str) -> Result<(String, SourceMapping)> {
     raw_source_mapping.file = String::from(path); // TODO
 
     let mut source_mapping = SourceMapping::from_raw(raw_source_mapping)?;
+    source_mapping.source_file_len = file_meta.len();
     source_mapping.source_map_len = last_line.len() as u64;
 
     Ok((contents, source_mapping))
@@ -116,6 +118,9 @@ pub struct SourceMapping {
     sources: Vec<String>,
     names: Vec<String>,
     mappings: Vec<Mapping>,
+    // Field not present in source JSON, but read early to split presentation logic from
+    // parsing and analyzing logic
+    source_file_len: u64,
     // Field not present in source JSON, but needed for presenting meaningful results
     source_map_len: u64,
 }
@@ -141,6 +146,10 @@ impl SourceMapping {
         &self.mappings
     }
 
+    pub fn source_file_len(&self) -> u64 {
+        self.source_file_len
+    }
+
     pub fn source_map_len(&self) -> u64 {
         self.source_map_len
     }
@@ -149,6 +158,10 @@ impl SourceMapping {
         let mut mappings: Vec<Mapping> = vec![];
 
         for (gen_line, generated_line_mapping) in raw_mapping.mappings.split(';').enumerate() {
+            if generated_line_mapping.is_empty() {
+                continue;
+            }
+
             let mut line_prev_column = 0i32;
 
             for term_mapping in generated_line_mapping.split(',') {
@@ -175,7 +188,12 @@ impl SourceMapping {
             sources: raw_mapping.sources,
             names: raw_mapping.names,
             mappings,
+            source_file_len: 0,
             source_map_len: 0,
         })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty() && self.mappings.is_empty()
     }
 }

@@ -1,14 +1,19 @@
 use console::Style;
 
-use super::{
-    analyzer::{SourceMappingFileInfo, SourceMappingInfo},
-    parser::SourceMapping,
+use crate::{
+    core::{
+        analyzer::{SourceMappingFileInfo, SourceMappingInfo},
+        parser::SourceMapping,
+    },
+    output::utils::{format_bytes, format_percentage},
 };
 
-pub fn print_file_info(mapping: &SourceMapping, info: &SourceMappingInfo) {
+pub fn print_file_info(info: &SourceMappingInfo) {
     let file_style = Style::new().bold();
     let highlight_style = Style::new().cyan();
     let highlight_style2 = Style::new().green();
+
+    let mapping = &info.source_mapping;
 
     if mapping.is_empty() {
         println!(
@@ -38,12 +43,12 @@ pub fn print_file_info(mapping: &SourceMapping, info: &SourceMappingInfo) {
         .collect::<Vec<&SourceMappingFileInfo>>();
     info_by_file.sort_by_key(|i| i.bytes);
 
-    for info in info_by_file.iter().rev() {
+    for file_info in info_by_file.iter().rev() {
         println!(
             "- {}, size {} ({})",
-            file_style.apply_to(without_relative_part(info.file_name)),
-            highlight_style.apply_to(format_bytes(info.bytes as u64)),
-            highlight_style2.apply_to(format_percentage(info.bytes as u64, source_file_len)),
+            file_style.apply_to(without_relative_part(info.get_file_name(file_info.file))),
+            highlight_style.apply_to(format_bytes(file_info.bytes as u64)),
+            highlight_style2.apply_to(format_percentage(file_info.bytes as u64, source_file_len)),
         );
     }
 
@@ -93,21 +98,4 @@ fn get_sources_root(mapping: &SourceMapping) -> String {
 
 fn without_relative_part(file: &str) -> &str {
     file.trim_start_matches("../")
-}
-
-fn format_percentage(numerator: u64, denominator: u64) -> String {
-    format!("{:.2}%", numerator as f64 / denominator as f64 * 100f64)
-}
-
-fn format_bytes(bytes: u64) -> String {
-    let kilos = bytes as f64 / 1024f64;
-    let megs = kilos as f64 / 1024f64;
-
-    if megs > 1f64 {
-        format!("{megs:.2} MiB")
-    } else if kilos > 1f64 {
-        format!("{kilos:.2} KiB")
-    } else {
-        format!("{bytes} B")
-    }
 }

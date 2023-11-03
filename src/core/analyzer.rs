@@ -3,30 +3,38 @@ use anyhow::{anyhow, Context, Result};
 use super::parser::{SourceMapping, EMPTY_MAPPING};
 
 #[derive(Debug)]
-pub struct SourceMappingFileInfo<'file_name> {
+pub struct SourceMappingFileInfo {
     pub bytes: u32,
-    pub file_name: &'file_name str,
+    pub file: u32,
 }
 
 #[derive(Debug)]
-pub struct SourceMappingInfo<'file_name> {
+pub struct SourceMappingInfo {
+    pub source_mapping: SourceMapping,
     pub sum_bytes: u32,
-    pub info_by_file: Vec<SourceMappingFileInfo<'file_name>>,
+    pub info_by_file: Vec<SourceMappingFileInfo>,
 }
 
-pub fn calculate_size_by_file<'source_mapping>(
-    file_contents: &'source_mapping str,
-    source_mapping: &'source_mapping SourceMapping,
-) -> Result<SourceMappingInfo<'source_mapping>> {
+impl SourceMappingInfo {
+    pub fn get_file_name(&self, file: u32) -> &str {
+        &self.source_mapping.sources()[file as usize]
+    }
+}
+
+pub fn calculate_size_by_file(
+    file_contents: &str,
+    source_mapping: SourceMapping,
+) -> Result<SourceMappingInfo> {
     let file_lines = file_contents.lines().collect::<Vec<&str>>();
 
     let mut sum_bytes = 0u32;
     let mut info_by_file = source_mapping
         .sources()
-        .iter()
-        .map(|file_name| SourceMappingFileInfo {
+        .into_iter()
+        .enumerate()
+        .map(|(file, _)| SourceMappingFileInfo {
             bytes: 0,
-            file_name,
+            file: file as u32,
         })
         .collect::<Vec<_>>();
 
@@ -85,6 +93,7 @@ pub fn calculate_size_by_file<'source_mapping>(
     }
 
     Ok(SourceMappingInfo {
+        source_mapping,
         sum_bytes,
         info_by_file,
     })

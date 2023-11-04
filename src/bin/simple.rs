@@ -1,18 +1,15 @@
 use anyhow::{anyhow, Error, Result};
-use std::env;
 
-use output::terminal::print_file_info;
+use sourcemap_vis::output::terminal::{get_default_styles, print_file_info};
 
-use crate::core::analyze_path;
-
-mod core;
-mod output;
+use sourcemap_vis::core::analyze_path;
 
 fn main() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
 
     match args.len() {
         2 => {
+            let styles = get_default_styles();
             let mut files_checked = 0u32;
             let mut files_with_errors: Vec<(String, Error)> = vec![];
 
@@ -26,11 +23,17 @@ fn main() -> Result<()> {
 
             for (file, err) in files_with_errors {
                 println!(
-                    "Error when parsing file {file}, make sure the sourcemap is correct: {err}"
+                    "{} Error when parsing file {}, make sure the sourcemap is correct:\n- {}",
+                    styles.error.apply_to("!"),
+                    styles.file.apply_to(file),
+                    err,
                 );
             }
 
-            println!("Number of files checked: {}", files_checked);
+            println!(
+                "Files checked: {}",
+                styles.highlight.apply_to(files_checked)
+            );
 
             Ok(())
         }

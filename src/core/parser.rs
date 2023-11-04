@@ -196,4 +196,31 @@ impl SourceMapping {
     pub fn is_empty(&self) -> bool {
         self.sources.is_empty() && self.mappings.is_empty()
     }
+
+    pub fn get_sources_root(&self) -> String {
+        match self.source_root() {
+            Some(path) if !path.is_empty() => return path.to_owned(),
+            _ => {}
+        }
+
+        // This looks like crap
+        let relative_jumps = self
+            .sources()
+            .first()
+            .unwrap()
+            .split('/')
+            .take_while(|part| part == &"..")
+            .count();
+
+        // TODO: This looks like crap even more
+        self.file()
+            .split('/')
+            .rev()
+            .skip((relative_jumps + 1) as usize)
+            .collect::<Vec<&str>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<&str>>()
+            .join("/")
+    }
 }

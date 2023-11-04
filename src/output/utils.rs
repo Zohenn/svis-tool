@@ -1,3 +1,7 @@
+pub fn without_relative_part(file: &str) -> &str {
+    file.trim_start_matches("../")
+}
+
 pub fn format_percentage(numerator: u64, denominator: u64) -> String {
     format!("{:.2}%", numerator as f64 / denominator as f64 * 100f64)
 }

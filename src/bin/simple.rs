@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Error, Result};
 
-use sourcemap_vis::output::terminal::{get_default_styles, print_file_info};
+use sourcemap_vis::ui::terminal::{get_default_styles, print_file_info};
 
 use sourcemap_vis::core::analyze_path;
 

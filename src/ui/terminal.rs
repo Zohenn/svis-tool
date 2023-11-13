@@ -5,7 +5,7 @@ use crate::{
         analyzer::{SourceMappingFileInfo, SourceMappingInfo},
         parser::SourceMapping,
     },
-    output::utils::{format_bytes, format_percentage, without_relative_part},
+    ui::utils::{format_bytes, format_percentage, without_relative_part},
 };
 
 pub struct Styles {
@@ -39,7 +39,7 @@ pub fn print_file_info(info: &SourceMappingInfo) {
 
     let sources_root = mapping.get_sources_root();
 
-    let source_file_len = mapping.source_file_len() - mapping.source_map_len();
+    let source_file_len = mapping.source_file_without_source_map_len();
 
     println!(
         "File {}, total size {}.",
@@ -51,10 +51,7 @@ pub fn print_file_info(info: &SourceMappingInfo) {
         styles.file.apply_to(sources_root)
     );
 
-    let mut info_by_file = info
-        .info_by_file
-        .iter()
-        .collect::<Vec<&SourceMappingFileInfo>>();
+    let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
     info_by_file.sort_by_key(|i| i.bytes);
 
     for file_info in info_by_file.iter().rev() {
@@ -63,9 +60,7 @@ pub fn print_file_info(info: &SourceMappingInfo) {
             styles
                 .file
                 .apply_to(without_relative_part(info.get_file_name(file_info.file))),
-            styles
-                .highlight
-                .apply_to(format_bytes(file_info.bytes as u64)),
+            styles.highlight.apply_to(format_bytes(file_info.bytes as u64)),
             styles
                 .highlight2
                 .apply_to(format_percentage(file_info.bytes as u64, source_file_len)),
@@ -86,8 +81,6 @@ pub fn print_file_info(info: &SourceMappingInfo) {
     println!(
         "Remaining size taken by preamble, imports, whitespace, comments, etc.: {} ({})",
         styles.highlight.apply_to(format_bytes(rest)),
-        styles
-            .highlight2
-            .apply_to(format_percentage(rest, source_file_len))
+        styles.highlight2.apply_to(format_percentage(rest, source_file_len))
     );
 }

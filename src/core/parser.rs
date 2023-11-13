@@ -154,6 +154,10 @@ impl SourceMapping {
         self.source_map_len
     }
 
+    pub fn source_file_without_source_map_len(&self) -> u64 {
+        self.source_file_len - self.source_map_len
+    }
+
     fn from_raw(raw_mapping: RawSourceMapping) -> Result<Self> {
         let mut mappings: Vec<Mapping> = vec![];
 

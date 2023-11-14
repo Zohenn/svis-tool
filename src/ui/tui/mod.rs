@@ -9,10 +9,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
-    prelude::Rect,
+    prelude::{Alignment, Rect},
     style::*,
     text::{Line, Text},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Padding, Paragraph},
     Frame, Terminal,
 };
 use tui_input::backend::crossterm::EventHandler;
@@ -22,13 +22,7 @@ use crate::core::{analyze_path, analyzer::SourceMappingInfo};
 
 use super::utils::format_bytes;
 
-enum InputMode {
-    Normal,
-    Editing,
-}
-
 struct PathState {
-    /// Current value of the input box
     path_input: Input,
 }
 
@@ -55,7 +49,7 @@ impl FocusableWidgetState for PathState {
 
     fn callback(app: &mut App) -> HandleEventResult {
         let path = app.path_state.path_input.value().to_owned();
-        let state_w = app.analyze_state.clone();
+        let state_w = app.file_list_state.analyze_state.clone();
 
         thread::spawn(move || {
             let mut file_infos = Vec::new();
@@ -105,14 +99,13 @@ trait FocusableWidgetState {
 #[derive(Clone, Copy)]
 enum FocusableWidget {
     PathInput,
-    // FileList,
+    FileList,
 }
 
-/// App holds the state of the application
 pub struct App {
     focused_widget: Option<FocusableWidget>,
     path_state: PathState,
-    analyze_state: Arc<RwLock<Option<AnalyzeState>>>,
+    file_list_state: FileListState,
 }
 
 impl Default for App {
@@ -120,7 +113,9 @@ impl Default for App {
         App {
             focused_widget: None,
             path_state: PathState::default(),
-            analyze_state: Arc::new(RwLock::new(None)),
+            file_list_state: FileListState {
+                analyze_state: Arc::new(RwLock::new(None)),
+            },
         }
     }
 }
@@ -128,6 +123,33 @@ impl Default for App {
 enum AnalyzeState {
     Pending(u16),
     Done(AnalyzeDoneState),
+}
+
+struct FileListState {
+    analyze_state: Arc<RwLock<Option<AnalyzeState>>>,
+}
+
+impl FocusableWidgetState for FileListState {
+    fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
+        match &mut *self.analyze_state.write().unwrap() {
+            Some(AnalyzeState::Done(state)) => match event.code {
+                KeyCode::Esc => {
+                    state.file_infos.unselect();
+                    return HandleEventResult::Blur;
+                }
+                KeyCode::Down => state.file_infos.next(),
+                KeyCode::Up => state.file_infos.previous(),
+                _ => {}
+            },
+            _ => {}
+        }
+
+        if matches!(event.code, KeyCode::Esc) {
+            HandleEventResult::Blur
+        } else {
+            HandleEventResult::KeepFocus
+        }
+    }
 }
 
 struct AnalyzeDoneState {
@@ -193,20 +215,11 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
         // event::read is blocking, event::poll is not
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                match &mut *app.analyze_state.write().unwrap() {
-                    Some(AnalyzeState::Done(state)) => match key.code {
-                        KeyCode::Left => state.file_infos.unselect(),
-                        KeyCode::Down => state.file_infos.next(),
-                        KeyCode::Up => state.file_infos.previous(),
-                        _ => {}
-                    },
-                    _ => {}
-                }
-
                 match app.focused_widget {
                     Some(widget) => {
                         let widget_state: &mut dyn FocusableWidgetState = match widget {
                             FocusableWidget::PathInput => &mut app.path_state,
+                            FocusableWidget::FileList => &mut app.file_list_state,
                         };
 
                         match widget_state.handle_events(key) {
@@ -222,6 +235,15 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
                     None => match key.code {
                         KeyCode::Char('p') => {
                             app.focused_widget = Some(FocusableWidget::PathInput);
+                        }
+                        KeyCode::Char('l') => {
+                            app.focused_widget = Some(FocusableWidget::FileList);
+                            match &mut *app.file_list_state.analyze_state.write().unwrap() {
+                                Some(AnalyzeState::Done(state)) => {
+                                    state.file_infos.next();
+                                }
+                                _ => {}
+                            };
                         }
                         KeyCode::Char('q') => {
                             return Ok(());
@@ -245,42 +267,7 @@ fn ui(f: &mut Frame, app: &App) {
 
     path_input(f, app, chunks[1]);
 
-    match &mut *app.analyze_state.write().unwrap() {
-        Some(AnalyzeState::Pending(files_checked)) => {
-            f.render_widget(
-                Paragraph::new(format!("Files checked: {files_checked}")).block(Block::default().borders(Borders::ALL)),
-                chunks[2],
-            );
-        }
-        Some(AnalyzeState::Done(state)) => {
-            let messages: Vec<ListItem> = state
-                .file_infos
-                .items
-                .iter()
-                .map(|info| {
-                    let content = vec![Line::from(vec![
-                        info.source_mapping.file().into(),
-                        " ".into(),
-                        format_bytes(info.source_mapping.source_file_without_source_map_len())
-                            .bold()
-                            .cyan(),
-                    ])];
-                    ListItem::new(content)
-                })
-                .collect();
-            let messages = List::new(messages)
-                .block(Block::default().borders(Borders::ALL).title("Files"))
-                .highlight_style(Style::default().bg(Color::LightGreen).add_modifier(Modifier::BOLD))
-                .highlight_symbol(">> ");
-            f.render_stateful_widget(messages, chunks[2], &mut state.file_infos.state);
-        }
-        None => {
-            f.render_widget(
-                Paragraph::new(format!("Enter path to start")).block(Block::default().borders(Borders::ALL)),
-                chunks[2],
-            );
-        }
-    }
+    file_list(f, app, chunks[2]);
 }
 
 fn help_message(f: &mut Frame, app: &App, rect: Rect) {
@@ -326,4 +313,53 @@ fn path_input(f: &mut Frame, app: &App, rect: Rect) {
             rect.y + 1,
         )
     }
+}
+
+fn file_list(f: &mut Frame, app: &App, rect: Rect) {
+    match &mut *app.file_list_state.analyze_state.write().unwrap() {
+        Some(AnalyzeState::Pending(files_checked)) => {
+            centered_text(f, &format!("Files checked: {files_checked}"), rect);
+        }
+        Some(AnalyzeState::Done(state)) => {
+            let messages: Vec<ListItem> = state
+                .file_infos
+                .items
+                .iter()
+                .map(|info| {
+                    let content = vec![Line::from(vec![
+                        info.source_mapping.file().into(),
+                        " ".into(),
+                        format_bytes(info.source_mapping.source_file_without_source_map_len())
+                            .bold()
+                            .cyan(),
+                    ])];
+                    ListItem::new(content)
+                })
+                .collect();
+
+            let label = Line::from(vec!["File list (".into(), "l".underlined(), ")".into()]);
+
+            let messages = List::new(messages)
+                .block(Block::default().borders(Borders::ALL).title(label))
+                .highlight_style(Style::default().bg(Color::LightGreen).add_modifier(Modifier::BOLD))
+                .highlight_symbol(">> ");
+            f.render_stateful_widget(messages, rect, &mut state.file_infos.state);
+        }
+        None => {
+            centered_text(f, "Enter path to start", rect);
+        }
+    }
+}
+
+fn centered_text(f: &mut Frame, text: &str, rect: Rect) {
+    f.render_widget(
+        Paragraph::new(text)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .padding(Padding::new(0, 0, rect.height / 2, 0)),
+            )
+            .alignment(Alignment::Center),
+        rect,
+    );
 }

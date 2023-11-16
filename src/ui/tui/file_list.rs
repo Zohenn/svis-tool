@@ -3,14 +3,16 @@ use std::sync::{Arc, RwLock};
 use anyhow::Error;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    prelude::Rect,
-    style::*,
-    text::Line,
-    widgets::{Block, Borders, List, ListItem},
+    prelude::*,
+    text::{Line, Text},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame,
 };
 
-use crate::{core::analyzer::SourceMappingInfo, ui::utils::format_bytes};
+use crate::{
+    core::analyzer::{SourceMappingFileInfo, SourceMappingInfo},
+    ui::utils::{format_bytes, format_percentage, without_relative_part},
+};
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
@@ -35,8 +37,8 @@ impl FocusableWidgetState for FileListState {
                     state.file_infos.unselect();
                     return HandleEventResult::Blur;
                 }
-                KeyCode::Down => state.file_infos.next(),
-                KeyCode::Up => state.file_infos.previous(),
+                KeyCode::Down | KeyCode::Char('j') => state.file_infos.next(),
+                KeyCode::Up | KeyCode::Char('k') => state.file_infos.previous(),
                 _ => {}
             },
             _ => {}
@@ -62,6 +64,18 @@ pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
             centered_text(f, &format!("Files checked: {files_checked}"), rect);
         }
         Some(AnalyzeState::Done(state)) => {
+            let selected_item = state.file_infos.selected_item();
+
+            let constraints = match selected_item {
+                Some(_) => [Constraint::Percentage(50), Constraint::Percentage(50)],
+                None => [Constraint::Percentage(100), Constraint::Percentage(0)],
+            };
+
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(constraints.as_ref())
+                .split(rect);
+
             let messages: Vec<ListItem> = state
                 .file_infos
                 .items
@@ -80,14 +94,98 @@ pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
 
             let label = Line::from(vec!["File list (".into(), "l".underlined(), ")".into()]);
 
+            if let Some(item) = selected_item {
+                render_mapping_info(f, item, chunks[1]);
+            }
+
             let messages = List::new(messages)
                 .block(Block::default().borders(Borders::ALL).title(label))
-                .highlight_style(Style::default().bg(Color::LightGreen).add_modifier(Modifier::BOLD))
+                .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
-            f.render_stateful_widget(messages, rect, &mut state.file_infos.state);
+            f.render_stateful_widget(messages, chunks[0], &mut state.file_infos.state);
         }
         None => {
             centered_text(f, "Enter path to start", rect);
         }
     }
+}
+
+pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) {
+    let mapping = &info.source_mapping;
+
+    let text: Text = if mapping.is_empty() {
+        vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()].into()
+    } else {
+        let sources_root = mapping.get_sources_root();
+
+        let source_file_len = mapping.source_file_without_source_map_len();
+
+        let mut lines = vec![
+            Line::from(vec![
+                "File size: ".into(),
+                format_bytes(source_file_len).cyan().into(),
+                ".".into(),
+            ]),
+            Line::from(vec![
+                "Size contribution per file (all paths are relative to ".into(),
+                sources_root.bold().into(),
+                "):".into(),
+            ]),
+        ];
+
+        let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
+        info_by_file.sort_by_key(|i| i.bytes);
+
+        for file_info in info_by_file.iter().rev() {
+            lines.push(
+                vec![
+                    "- ".into(),
+                    without_relative_part(info.get_file_name(file_info.file)).bold().into(),
+                    ", size ".into(),
+                    format_bytes(file_info.bytes as u64).cyan().into(),
+                    " (".into(),
+                    format_percentage(file_info.bytes as u64, source_file_len)
+                        .green()
+                        .into(),
+                    ")".into(),
+                ]
+                .into(),
+            );
+        }
+
+        let sum_bytes = info.sum_bytes as u64;
+
+        lines.push(
+            vec![
+                "Sum: ".into(),
+                format_bytes(sum_bytes).cyan().into(),
+                " (".into(),
+                format_percentage(sum_bytes, source_file_len).green().into(),
+                ")".into(),
+            ]
+            .into(),
+        );
+
+        let rest = source_file_len - sum_bytes;
+
+        lines.push(
+            vec![
+                "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
+                format_bytes(rest).cyan().into(),
+                " (".into(),
+                format_percentage(rest, source_file_len).green().into(),
+                ")".into(),
+            ]
+            .into(),
+        );
+
+        lines.into()
+    };
+
+    f.render_widget(
+        Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL))
+            .wrap(Wrap { trim: true }),
+        rect,
+    );
 }

@@ -27,7 +27,7 @@ use self::{
 };
 
 #[derive(Clone, Copy)]
-enum FocusableWidget {
+pub enum FocusableWidget {
     PathInput,
     FileList,
 }
@@ -71,9 +71,11 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
                         match widget_state.handle_events(key) {
                             HandleEventResult::Blur => app.focused_widget = None,
                             HandleEventResult::KeepFocus => {}
+                            HandleEventResult::ChangeFocus(new_widget) => app.focused_widget = Some(new_widget),
                             HandleEventResult::Callback(callback) => match callback(&mut app) {
                                 HandleEventResult::Blur => app.focused_widget = None,
                                 HandleEventResult::KeepFocus => {}
+                                HandleEventResult::ChangeFocus(new_widget) => app.focused_widget = Some(new_widget),
                                 HandleEventResult::Callback(_) => unreachable!(),
                             },
                         }

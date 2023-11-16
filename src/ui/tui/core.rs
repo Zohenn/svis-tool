@@ -1,11 +1,12 @@
 use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
 
-use super::App;
+use super::{App, FocusableWidget};
 
 pub enum HandleEventResult {
     Blur,
     KeepFocus,
+    ChangeFocus(FocusableWidget),
     Callback(fn(&mut App) -> HandleEventResult), //Box<dyn FnMut(&mut App) -> HandleEventResult>),
 }
 
@@ -63,5 +64,16 @@ impl<T> StatefulList<T> {
 
     pub fn unselect(&mut self) {
         self.state.select(None);
+    }
+
+    pub fn has_selection(&self) -> bool {
+        self.state.selected().is_some()
+    }
+
+    pub fn selected_item(&self) -> Option<&T> {
+        match self.state.selected() {
+            Some(i) => self.items.get(i),
+            None => None,
+        }
     }
 }

@@ -15,6 +15,7 @@ use crate::core::analyze_path;
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
     file_list::AnalyzeDoneState,
+    widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };
 
@@ -81,7 +82,7 @@ pub fn render_path_input(f: &mut Frame, app: &App, rect: Rect) {
     let scroll = app.path_state.path_input.visual_scroll(width as usize);
     let is_focused = matches!(app.focused_widget, Some(FocusableWidget::PathInput));
 
-    let label = Line::from(vec!["Path (".into(), "p".underlined(), ")".into()]);
+    let label = Line::from(vec!["p".key().into(), "ath".into()]);
 
     let input = Paragraph::new(app.path_state.path_input.value())
         .style(match is_focused {
@@ -89,7 +90,7 @@ pub fn render_path_input(f: &mut Frame, app: &App, rect: Rect) {
             false => Style::default(),
         })
         .scroll((0, scroll as u16))
-        .block(Block::default().borders(Borders::ALL).title(label));
+        .block(default_block().title(label));
     f.render_widget(input, rect);
 
     if is_focused {

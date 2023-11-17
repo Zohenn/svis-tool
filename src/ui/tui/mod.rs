@@ -16,7 +16,7 @@ use ratatui::{
     prelude::Rect,
     style::*,
     text::{Line, Text},
-    widgets::Paragraph,
+    widgets::{Block, Paragraph},
     Frame, Terminal,
 };
 
@@ -84,7 +84,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
                         KeyCode::Char('p') => {
                             app.focused_widget = Some(FocusableWidget::PathInput);
                         }
-                        KeyCode::Char('l') => {
+                        KeyCode::Char('f') => {
                             app.focused_widget = Some(FocusableWidget::FileList);
                             match &mut *app.file_list_state.analyze_state.write().unwrap() {
                                 Some(AnalyzeState::Done(state)) => {
@@ -105,6 +105,8 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
 }
 
 fn ui(f: &mut Frame, app: &App) {
+    f.render_widget(Block::new().style(Style::default().on_black()), f.size());
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)

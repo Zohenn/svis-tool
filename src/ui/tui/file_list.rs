@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
-    widget_utils::centered_text,
+    widget_utils::{centered_text, default_block, CustomStyles},
     App,
 };
 
@@ -84,22 +84,20 @@ pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
                     let content = vec![Line::from(vec![
                         info.source_mapping.file().into(),
                         " ".into(),
-                        format_bytes(info.source_mapping.source_file_without_source_map_len())
-                            .bold()
-                            .cyan(),
+                        format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight(),
                     ])];
                     ListItem::new(content)
                 })
                 .collect();
 
-            let label = Line::from(vec!["File list (".into(), "l".underlined(), ")".into()]);
+            let label = Line::from(vec!["f".key().into(), "ile list".into()]);
 
             if let Some(item) = selected_item {
                 render_mapping_info(f, item, chunks[1]);
             }
 
             let messages = List::new(messages)
-                .block(Block::default().borders(Borders::ALL).title(label))
+                .block(default_block().title(label))
                 .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
             f.render_stateful_widget(messages, chunks[0], &mut state.file_infos.state);
@@ -123,7 +121,7 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
         let mut lines = vec![
             Line::from(vec![
                 "File size: ".into(),
-                format_bytes(source_file_len).cyan().into(),
+                format_bytes(source_file_len).highlight().into(),
                 ".".into(),
             ]),
             Line::from(vec![
@@ -142,10 +140,10 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
                     "- ".into(),
                     without_relative_part(info.get_file_name(file_info.file)).bold().into(),
                     ", size ".into(),
-                    format_bytes(file_info.bytes as u64).cyan().into(),
+                    format_bytes(file_info.bytes as u64).highlight().into(),
                     " (".into(),
                     format_percentage(file_info.bytes as u64, source_file_len)
-                        .green()
+                        .highlight2()
                         .into(),
                     ")".into(),
                 ]
@@ -158,9 +156,9 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
         lines.push(
             vec![
                 "Sum: ".into(),
-                format_bytes(sum_bytes).cyan().into(),
+                format_bytes(sum_bytes).highlight(),
                 " (".into(),
-                format_percentage(sum_bytes, source_file_len).green().into(),
+                format_percentage(sum_bytes, source_file_len).highlight2().into(),
                 ")".into(),
             ]
             .into(),
@@ -171,9 +169,9 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
         lines.push(
             vec![
                 "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
-                format_bytes(rest).cyan().into(),
+                format_bytes(rest).highlight().into(),
                 " (".into(),
-                format_percentage(rest, source_file_len).green().into(),
+                format_percentage(rest, source_file_len).highlight2().into(),
                 ")".into(),
             ]
             .into(),
@@ -183,9 +181,7 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
     };
 
     f.render_widget(
-        Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL))
-            .wrap(Wrap { trim: true }),
+        Paragraph::new(text).block(default_block()).wrap(Wrap { trim: true }),
         rect,
     );
 }

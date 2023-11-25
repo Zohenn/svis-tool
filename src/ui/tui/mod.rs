@@ -22,7 +22,7 @@ use ratatui::{
 
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{render_file_list, AnalyzeState, FileListState},
+    file_list::{render_file_list, AnalyzeState, FileInfoState, FileListState},
     path_input::{render_path_input, PathState},
 };
 
@@ -30,12 +30,14 @@ use self::{
 pub enum FocusableWidget {
     PathInput,
     FileList,
+    FileInfo,
 }
 
 pub struct App {
     focused_widget: Option<FocusableWidget>,
     path_state: PathState,
     file_list_state: FileListState,
+    file_info_state: FileInfoState,
 }
 
 impl Default for App {
@@ -46,6 +48,7 @@ impl Default for App {
             file_list_state: FileListState {
                 analyze_state: Arc::new(RwLock::new(None)),
             },
+            file_info_state: FileInfoState::default(),
         }
     }
 }
@@ -56,7 +59,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
         .path_input
         .with_value("/var/www/hrappka-frontend/dist/spa/assets/".into());
     loop {
-        terminal.draw(|f| ui(f, &app))?;
+        terminal.draw(|f| ui(f, &mut app))?;
 
         // event::read is blocking, event::poll is not
         if event::poll(Duration::from_millis(100))? {
@@ -66,6 +69,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
                         let widget_state: &mut dyn FocusableWidgetState = match widget {
                             FocusableWidget::PathInput => &mut app.path_state,
                             FocusableWidget::FileList => &mut app.file_list_state,
+                            FocusableWidget::FileInfo => &mut app.file_info_state,
                         };
 
                         match widget_state.handle_events(key) {
@@ -104,7 +108,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Resu
     }
 }
 
-fn ui(f: &mut Frame, app: &App) {
+fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(Block::new().style(Style::default().on_black()), f.size());
 
     let chunks = Layout::default()

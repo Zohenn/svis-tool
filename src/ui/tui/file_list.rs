@@ -5,7 +5,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::*,
     text::{Line, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{
+        block::{Position, Title},
+        List, ListItem, Paragraph, Wrap,
+    },
     Frame,
 };
 
@@ -17,7 +20,7 @@ use crate::{
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
     widget_utils::{centered_text, default_block, CustomStyles},
-    App,
+    App, FocusableWidget,
 };
 
 pub enum AnalyzeState {
@@ -39,6 +42,7 @@ impl FocusableWidgetState for FileListState {
                 }
                 KeyCode::Down | KeyCode::Char('j') => state.file_infos.next(),
                 KeyCode::Up | KeyCode::Char('k') => state.file_infos.previous(),
+                KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
                 _ => {}
             },
             _ => {}
@@ -58,7 +62,7 @@ pub struct AnalyzeDoneState {
     pub files_with_errors: Vec<(String, Error)>,
 }
 
-pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
+pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
     match &mut *app.file_list_state.analyze_state.write().unwrap() {
         Some(AnalyzeState::Pending(files_checked)) => {
             centered_text(f, &format!("Files checked: {files_checked}"), rect);
@@ -91,13 +95,18 @@ pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
                 .collect();
 
             let label = Line::from(vec!["f".key().into(), "ile list".into()]);
+            let mut block = default_block().title(label);
 
             if let Some(item) = selected_item {
-                render_mapping_info(f, item, chunks[1]);
+                render_mapping_info(f, &mut app.file_info_state, item, chunks[1]);
+
+                block = block.title(
+                    Title::from(Line::from(vec![" ↑↓ jk".key().into(), " select".into()])).position(Position::Bottom),
+                );
             }
 
             let messages = List::new(messages)
-                .block(default_block().title(label))
+                .block(block)
                 .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
                 .highlight_symbol(">> ");
             f.render_stateful_widget(messages, chunks[0], &mut state.file_infos.state);
@@ -108,7 +117,7 @@ pub fn render_file_list(f: &mut Frame, app: &App, rect: Rect) {
     }
 }
 
-pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) {
+pub fn render_mapping_info(f: &mut Frame, file_info_state: &mut FileInfoState, info: &SourceMappingInfo, rect: Rect) {
     let mapping = &info.source_mapping;
 
     let text: Text = if mapping.is_empty() {
@@ -180,8 +189,71 @@ pub fn render_mapping_info(f: &mut Frame, info: &SourceMappingInfo, rect: Rect) 
         lines.into()
     };
 
+    let height = calculate_height(&text, rect.width);
+
+    file_info_state.max_height = rect.height;
+    file_info_state.text_height = height;
+
     f.render_widget(
-        Paragraph::new(text).block(default_block()).wrap(Wrap { trim: true }),
+        Paragraph::new(text)
+            .block(default_block().title(format!("{}/{}", height, rect.height)))
+            .wrap(Wrap { trim: true })
+            .scroll((file_info_state.scroll, 0)),
         rect,
     );
+}
+
+pub struct FileInfoState {
+    pub scroll: u16,
+    pub text_height: u16,
+    pub max_height: u16,
+}
+
+impl Default for FileInfoState {
+    fn default() -> Self {
+        Self {
+            scroll: 0,
+            text_height: 0,
+            max_height: 0,
+        }
+    }
+}
+
+impl FocusableWidgetState for FileInfoState {
+    fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
+        match event.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.scroll == self.text_height {
+                    self.scroll = 0;
+                } else {
+                    self.scroll += 1;
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.scroll == 0 {
+                    self.scroll = self.text_height;
+                } else {
+                    self.scroll -= 1;
+                }
+            }
+            _ => {}
+        }
+
+        if matches!(event.code, KeyCode::Esc) {
+            HandleEventResult::ChangeFocus(FocusableWidget::FileList)
+        } else {
+            HandleEventResult::KeepFocus
+        }
+    }
+}
+
+fn calculate_height(text: &Text, max_line_width: u16) -> u16 {
+    let mut sum = 0;
+    let max_line_width = max_line_width as f32;
+
+    for line in &text.lines {
+        sum += (line.width() as f32 / max_line_width).ceil() as u16;
+    }
+
+    sum
 }

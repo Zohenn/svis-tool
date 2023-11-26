@@ -63,6 +63,8 @@ pub struct AnalyzeDoneState {
 }
 
 pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
+    let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileList));
+
     match &mut *app.file_list_state.analyze_state.write().unwrap() {
         Some(AnalyzeState::Pending(files_checked)) => {
             centered_text(f, &format!("Files checked: {files_checked}"), rect);
@@ -85,8 +87,10 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 .items
                 .iter()
                 .map(|info| {
+                    let source_path_len = app.path_state.path_input.value().len();
                     let content = vec![Line::from(vec![
-                        info.source_mapping.file().into(),
+                        "./".into(),
+                        (info.source_mapping.file()[source_path_len..]).into(),
                         " ".into(),
                         format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight(),
                     ])];
@@ -94,15 +98,21 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 })
                 .collect();
 
-            let label = Line::from(vec!["f".key().into(), "ile list".into()]);
+            let label = Line::from(vec![" f".key().into(), "ile list ".white().into()]);
             let mut block = default_block().title(label);
 
             if let Some(item) = selected_item {
-                render_mapping_info(f, &mut app.file_info_state, item, chunks[1]);
+                let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileInfo));
+                render_mapping_info(f, &mut app.file_info_state, item, is_focused, chunks[1]);
 
                 block = block.title(
-                    Title::from(Line::from(vec![" ↑↓ jk".key().into(), " select".into()])).position(Position::Bottom),
+                    Title::from(Line::from(vec![" ↑↓ jk".key().into(), " select ".white().into()]))
+                        .position(Position::Bottom),
                 );
+            }
+
+            if is_focused {
+                block = block.border_style(Style::default().yellow());
             }
 
             let messages = List::new(messages)
@@ -117,7 +127,13 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
     }
 }
 
-pub fn render_mapping_info(f: &mut Frame, file_info_state: &mut FileInfoState, info: &SourceMappingInfo, rect: Rect) {
+pub fn render_mapping_info(
+    f: &mut Frame,
+    file_info_state: &mut FileInfoState,
+    info: &SourceMappingInfo,
+    is_focused: bool,
+    rect: Rect,
+) {
     let mapping = &info.source_mapping;
 
     let text: Text = if mapping.is_empty() {
@@ -189,14 +205,21 @@ pub fn render_mapping_info(f: &mut Frame, file_info_state: &mut FileInfoState, i
         lines.into()
     };
 
-    let height = calculate_height(&text, rect.width);
+    let mut block = default_block();
+    if is_focused {
+        block = block.border_style(Style::default().yellow());
+    }
 
-    file_info_state.max_height = rect.height;
+    let block_inner = block.inner(rect);
+
+    let height = calculate_height(&text, block_inner.width);
+
+    file_info_state.max_height = block_inner.height;
     file_info_state.text_height = height;
 
     f.render_widget(
         Paragraph::new(text)
-            .block(default_block().title(format!("{}/{}", height, rect.height)))
+            .block(block)
             .wrap(Wrap { trim: true })
             .scroll((file_info_state.scroll, 0)),
         rect,
@@ -249,10 +272,13 @@ impl FocusableWidgetState for FileInfoState {
 
 fn calculate_height(text: &Text, max_line_width: u16) -> u16 {
     let mut sum = 0;
-    let max_line_width = max_line_width as f32;
 
     for line in &text.lines {
-        sum += (line.width() as f32 / max_line_width).ceil() as u16;
+        let line_width = line.width() as u16;
+        sum += line_width / max_line_width;
+        if line_width % max_line_width > 0 {
+            sum += 1;
+        }
     }
 
     sum

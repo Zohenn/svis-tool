@@ -53,11 +53,11 @@ impl Default for App {
     }
 }
 
-pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
+pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial_path: Option<&str>) -> Result<()> {
     app.path_state.path_input = app
         .path_state
         .path_input
-        .with_value("/var/www/hrappka-frontend/dist/spa/assets/".into());
+        .with_value(initial_path.unwrap_or("./test_files/work").into());
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 

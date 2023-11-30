@@ -8,6 +8,8 @@ use sourcemap_vis::ui::tui::{run_tui_app, App};
 use std::{error::Error, io};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let args: Vec<String> = std::env::args().collect();
+
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -25,15 +27,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let app = App::default();
-    let res = run_tui_app(&mut terminal, app);
+    let res = run_tui_app(&mut terminal, app, args.get(1).map(|x| x.as_str()));
 
     // restore terminal
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     if let Err(err) = res {

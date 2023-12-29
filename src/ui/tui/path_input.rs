@@ -14,7 +14,7 @@ use crate::core::analyze_path;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
-    file_list::AnalyzeDoneState,
+    file_list::{AnalyzeDoneState, FileInfoType},
     widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };
@@ -50,26 +50,30 @@ impl FocusableWidgetState for PathState {
 
         thread::spawn(move || {
             let mut file_infos = Vec::new();
-            let mut files_with_errors = Vec::new();
             let mut files_checked = 0;
 
             *state_w.write().unwrap() = Some(AnalyzeState::Pending(files_checked));
 
-            analyze_path(&path, |file, result| {
+            let result = analyze_path(&path, |file, result| {
                 files_checked += 1;
                 *state_w.write().unwrap() = Some(AnalyzeState::Pending(files_checked));
                 match result {
-                    Ok(info) => file_infos.push(info),
-                    Err(err) => files_with_errors.push((file.to_owned(), err)),
+                    Ok(info) => file_infos.push(FileInfoType::Info(info)),
+                    Err(err) => file_infos.push(FileInfoType::Err((file.to_owned(), err))),
                 }
-            })
-            .unwrap();
+            });
 
-            *state_w.write().unwrap() = Some(AnalyzeState::Done(AnalyzeDoneState {
-                files_checked,
-                file_infos: StatefulList::with_items(file_infos),
-                files_with_errors,
-            }));
+            match result {
+                Ok(_) => {
+                    *state_w.write().unwrap() = Some(AnalyzeState::Done(AnalyzeDoneState {
+                        files_checked,
+                        file_infos: StatefulList::with_items(file_infos),
+                    }));
+                }
+                Err(err) => {
+                    *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));
+                }
+            }
         });
 
         HandleEventResult::Blur

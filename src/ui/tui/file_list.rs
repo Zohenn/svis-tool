@@ -26,6 +26,7 @@ use super::{
 pub enum AnalyzeState {
     Pending(u16),
     Done(AnalyzeDoneState),
+    Err(Box<anyhow::Error>),
 }
 
 pub struct FileListState {
@@ -58,8 +59,12 @@ impl FocusableWidgetState for FileListState {
 
 pub struct AnalyzeDoneState {
     pub files_checked: u16,
-    pub file_infos: StatefulList<SourceMappingInfo>,
-    pub files_with_errors: Vec<(String, Error)>,
+    pub file_infos: StatefulList<FileInfoType>,
+}
+
+pub enum FileInfoType {
+    Info(SourceMappingInfo),
+    Err((String, Error)),
 }
 
 pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
@@ -68,6 +73,9 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
     match &mut *app.file_list_state.analyze_state.write().unwrap() {
         Some(AnalyzeState::Pending(files_checked)) => {
             centered_text(f, &format!("Files checked: {files_checked}"), rect);
+        }
+        Some(AnalyzeState::Err(err)) => {
+            centered_text(f, &err.to_string(), rect);
         }
         Some(AnalyzeState::Done(state)) => {
             let selected_item = state.file_infos.selected_item();
@@ -88,13 +96,23 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 .iter()
                 .map(|info| {
                     let source_path_len = app.path_state.path_input.value().len();
-                    let content = vec![Line::from(vec![
+                    let path = match info {
+                        FileInfoType::Info(info) => info.source_mapping.file(),
+                        FileInfoType::Err((file, _)) => file,
+                    };
+                    let mut content = vec![
                         "./".into(),
-                        (info.source_mapping.file()[source_path_len..]).into(),
+                        (path[source_path_len..].trim_start_matches('/')).into(),
                         " ".into(),
-                        format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight(),
-                    ])];
-                    ListItem::new(content)
+                    ];
+
+                    if let FileInfoType::Info(info) = info {
+                        content
+                            .push(format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight());
+                    } else {
+                        content.push("!".error());
+                    }
+                    ListItem::new(Line::from(content))
                 })
                 .collect();
 
@@ -130,79 +148,87 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
 pub fn render_mapping_info(
     f: &mut Frame,
     file_info_state: &mut FileInfoState,
-    info: &SourceMappingInfo,
+    info: &FileInfoType,
     is_focused: bool,
     rect: Rect,
 ) {
-    let mapping = &info.source_mapping;
+    let text = match info {
+        FileInfoType::Info(info) => {
+            let mapping = &info.source_mapping;
 
-    let text: Text = if mapping.is_empty() {
-        vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()].into()
-    } else {
-        let sources_root = mapping.get_sources_root();
+            let text: Text = if mapping.is_empty() {
+                vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()]
+                    .into()
+            } else {
+                let sources_root = mapping.get_sources_root();
 
-        let source_file_len = mapping.source_file_without_source_map_len();
+                let source_file_len = mapping.source_file_without_source_map_len();
 
-        let mut lines = vec![
-            Line::from(vec![
-                "File size: ".into(),
-                format_bytes(source_file_len).highlight().into(),
-                ".".into(),
-            ]),
-            Line::from(vec![
-                "Size contribution per file (all paths are relative to ".into(),
-                sources_root.bold().into(),
-                "):".into(),
-            ]),
-        ];
+                let mut lines = vec![
+                    Line::from(vec![
+                        "File size: ".into(),
+                        format_bytes(source_file_len).highlight().into(),
+                        ".".into(),
+                    ]),
+                    Line::from(vec![
+                        "Size contribution per file (all paths are relative to ".into(),
+                        sources_root.bold().into(),
+                        "):".into(),
+                    ]),
+                ];
 
-        let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
-        info_by_file.sort_by_key(|i| i.bytes);
+                let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
+                info_by_file.sort_by_key(|i| i.bytes);
 
-        for file_info in info_by_file.iter().rev() {
-            lines.push(
-                vec![
-                    "- ".into(),
-                    without_relative_part(info.get_file_name(file_info.file)).bold().into(),
-                    ", size ".into(),
-                    format_bytes(file_info.bytes as u64).highlight().into(),
-                    " (".into(),
-                    format_percentage(file_info.bytes as u64, source_file_len)
-                        .highlight2()
+                for file_info in info_by_file.iter().rev() {
+                    lines.push(
+                        vec![
+                            "- ".into(),
+                            without_relative_part(info.get_file_name(file_info.file)).bold().into(),
+                            ", size ".into(),
+                            format_bytes(file_info.bytes as u64).highlight().into(),
+                            " (".into(),
+                            format_percentage(file_info.bytes as u64, source_file_len)
+                                .highlight2()
+                                .into(),
+                            ")".into(),
+                        ]
                         .into(),
-                    ")".into(),
-                ]
-                .into(),
-            );
+                    );
+                }
+
+                let sum_bytes = info.sum_bytes as u64;
+
+                lines.push(
+                    vec![
+                        "Sum: ".into(),
+                        format_bytes(sum_bytes).highlight(),
+                        " (".into(),
+                        format_percentage(sum_bytes, source_file_len).highlight2().into(),
+                        ")".into(),
+                    ]
+                    .into(),
+                );
+
+                let rest = source_file_len - sum_bytes;
+
+                lines.push(
+                    vec![
+                        "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
+                        format_bytes(rest).highlight().into(),
+                        " (".into(),
+                        format_percentage(rest, source_file_len).highlight2().into(),
+                        ")".into(),
+                    ]
+                    .into(),
+                );
+
+                lines.into()
+            };
+
+            text
         }
-
-        let sum_bytes = info.sum_bytes as u64;
-
-        lines.push(
-            vec![
-                "Sum: ".into(),
-                format_bytes(sum_bytes).highlight(),
-                " (".into(),
-                format_percentage(sum_bytes, source_file_len).highlight2().into(),
-                ")".into(),
-            ]
-            .into(),
-        );
-
-        let rest = source_file_len - sum_bytes;
-
-        lines.push(
-            vec![
-                "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
-                format_bytes(rest).highlight().into(),
-                " (".into(),
-                format_percentage(rest, source_file_len).highlight2().into(),
-                ")".into(),
-            ]
-            .into(),
-        );
-
-        lines.into()
+        FileInfoType::Err((_path, err)) => err.to_string().into(),
     };
 
     let mut block = default_block();

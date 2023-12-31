@@ -21,10 +21,7 @@ impl SourceMappingInfo {
     }
 }
 
-pub fn calculate_size_by_file(
-    file_contents: &str,
-    source_mapping: SourceMapping,
-) -> Result<SourceMappingInfo> {
+pub fn calculate_size_by_file(file_contents: &str, source_mapping: SourceMapping) -> Result<SourceMappingInfo> {
     let file_lines = file_contents.lines().collect::<Vec<&str>>();
 
     let mut sum_bytes = 0u32;
@@ -45,8 +42,9 @@ pub fn calculate_size_by_file(
         let mut bytes = 0u32;
 
         if index == 0
-            || mapping.src_file() != prev_mapping.src_file()
-            || mapping.gen_line() != prev_mapping.gen_line()
+            || //mapping.src_file() != prev_mapping.src_file() ||
+            mapping.gen_line()
+                != prev_mapping.gen_line()
         {
             // Source maps usually skip keywords and other non-identifier tokens,
             // so if either file or line has changed compared to the previous mapping
@@ -73,18 +71,16 @@ pub fn calculate_size_by_file(
             }
         };
 
-        bytes += mapping_end_column
-            .checked_sub(mapping.gen_column())
-            .with_context(|| {
-                // This only happens in my test project where sourcemap is invalid, e.g. it maps
-                // inexistent columns in generated file to inexistent columns in source file.
-                anyhow!(
-                    "Subtraction with overflow: calculating bytes for path {}, operation: {} - {}",
-                    source_mapping.file(),
-                    mapping_end_column,
-                    mapping.gen_column(),
-                )
-            })?;
+        bytes += mapping_end_column.checked_sub(mapping.gen_column()).with_context(|| {
+            // This only happens in my test project where sourcemap is invalid, e.g. it maps
+            // inexistent columns in generated file to inexistent columns in source file.
+            anyhow!(
+                "Subtraction with overflow: calculating bytes for path {}, operation: {} - {}",
+                source_mapping.file(),
+                mapping_end_column,
+                mapping.gen_column(),
+            )
+        })?;
 
         info.bytes += bytes;
         sum_bytes += bytes;

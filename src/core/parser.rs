@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
-use std::fs;
+use std::{fs, path::Path};
 
 use anyhow::{anyhow, Context, Result};
 
@@ -37,7 +37,16 @@ struct RawSourceMapping {
 }
 
 fn parse_raw_source_mapping(path: &str, line: &str) -> Result<RawSourceMapping> {
-    if line.starts_with("//# sourceMappingURL=data:application/json;") {
+    let line_stripped = line.trim_start_matches("//# sourceMappingURL=");
+
+    if line_stripped.len() == line.len() {
+        return Err(anyhow!(
+            "Unsupported format: {}",
+            line.chars().take(100).collect::<String>(),
+        ));
+    }
+
+    let json_str = if line_stripped.starts_with("data:application/json;") {
         // base64 encoded source map
         let lookup = "base64,";
         let index = line
@@ -49,17 +58,18 @@ fn parse_raw_source_mapping(path: &str, line: &str) -> Result<RawSourceMapping> 
             .decode(base64_value)
             .with_context(|| anyhow!("File {path} contains invalid base64 sourcemap."))?;
 
-        let base64_str = String::from_utf8_lossy(&base64_decoded);
+        String::from_utf8_lossy(&base64_decoded).into_owned()
+    } else {
+        let path = Path::new(path);
+        let parent = path.parent().unwrap();
+        let map_path = parent.join(line_stripped);
 
-        let raw_source_mapping: RawSourceMapping = serde_json::from_str(&base64_str)?;
+        fs::read_to_string(map_path)?
+    };
 
-        return Ok(raw_source_mapping);
-    }
+    let raw_source_mapping: RawSourceMapping = serde_json::from_str(&json_str)?;
 
-    Err(anyhow!(
-        "Sorry, this format is not supported at the moment: {}",
-        line.chars().take(100).collect::<String>(),
-    ))
+    return Ok(raw_source_mapping);
 }
 
 #[derive(Debug)]

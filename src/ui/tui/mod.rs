@@ -40,7 +40,7 @@ pub struct App {
     file_info_state: FileInfoState,
 }
 
-impl Default for App {
+impl<'a> Default for App {
     fn default() -> App {
         App {
             focused_widget: None,

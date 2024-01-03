@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    cmp::Ordering,
+    sync::{Arc, RwLock},
+};
 
 use anyhow::Error;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -18,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    core::{FocusableWidgetState, HandleEventResult, StatefulList},
+    core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},
     widget_utils::{centered_text, default_block, CustomStyles},
     App, FocusableWidget,
 };
@@ -33,7 +36,7 @@ pub struct FileListState {
     pub analyze_state: Arc<RwLock<Option<AnalyzeState>>>,
 }
 
-impl FocusableWidgetState for FileListState {
+impl<'a> FocusableWidgetState for FileListState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
         match &mut *self.analyze_state.write().unwrap() {
             Some(AnalyzeState::Done(state)) => match event.code {
@@ -43,6 +46,29 @@ impl FocusableWidgetState for FileListState {
                 }
                 KeyCode::Down | KeyCode::Char('j') => state.file_infos.next(),
                 KeyCode::Up | KeyCode::Char('k') => state.file_infos.previous(),
+                KeyCode::Char('s') => {
+                    state.sort(FileInfoSort::Size);
+                }
+                KeyCode::Char('n') => {
+                    state.sort(FileInfoSort::Name);
+                }
+                // KeyCode::Char('s') => state.file_infos.sort(|a, b| match (a, b) {
+                //     (FileInfoType::Info(a), FileInfoType::Info(b)) => b
+                //         .source_mapping
+                //         .source_file_without_source_map_len()
+                //         .cmp(&a.source_mapping.source_file_without_source_map_len()),
+                //     (FileInfoType::Info(_), FileInfoType::Err(_)) => Ordering::Less,
+                //     (FileInfoType::Err(_), FileInfoType::Info(_)) => Ordering::Greater,
+                //     (FileInfoType::Err(_), FileInfoType::Err(_)) => Ordering::Equal,
+                // }),
+                // KeyCode::Char('n') => state.file_infos.sort(|a, b| {
+                //     let values = [a, b].map(|val| match val {
+                //         FileInfoType::Info(v) => &v.source_mapping.file_name,
+                //         FileInfoType::Err(v) => &v.file_name,
+                //     });
+                //
+                //     values[0].cmp(values[1])
+                // }),
                 KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
                 _ => {}
             },
@@ -60,11 +86,87 @@ impl FocusableWidgetState for FileListState {
 pub struct AnalyzeDoneState {
     pub files_checked: u16,
     pub file_infos: StatefulList<FileInfoType>,
+    pub sort: FileInfoSort,
+    pub sort_order: SortOrder,
+}
+
+impl AnalyzeDoneState {
+    pub fn new(files_checked: u16, file_infos: Vec<FileInfoType>) -> Self {
+        AnalyzeDoneState {
+            files_checked,
+            file_infos: StatefulList::with_items(file_infos),
+            sort: FileInfoSort::Name,
+            sort_order: SortOrder::Asc,
+        }
+    }
+
+    pub fn sort(&mut self, sort: FileInfoSort) {
+        let sort_order = if &self.sort == &sort {
+            self.sort_order.reverse()
+        } else {
+            SortOrder::Asc
+        };
+
+        self.sort = sort;
+        self.sort_order = sort_order;
+
+        let sort_function = match self.sort {
+            FileInfoSort::Size => Self::sort_by_size,
+            FileInfoSort::Name => Self::sort_by_name,
+        };
+
+        self.file_infos.sort(sort_function, self.sort_order);
+    }
+
+    fn sort_by_size(a: &FileInfoType, b: &FileInfoType) -> Ordering {
+        match (a, b) {
+            (FileInfoType::Info(a), FileInfoType::Info(b)) => b
+                .source_mapping
+                .source_file_without_source_map_len()
+                .cmp(&a.source_mapping.source_file_without_source_map_len()),
+            (FileInfoType::Info(_), FileInfoType::Err(_)) => Ordering::Less,
+            (FileInfoType::Err(_), FileInfoType::Info(_)) => Ordering::Greater,
+            (FileInfoType::Err(_), FileInfoType::Err(_)) => Ordering::Equal,
+        }
+    }
+
+    fn sort_by_name(a: &FileInfoType, b: &FileInfoType) -> Ordering {
+        let values = [a, b].map(|val| match val {
+            FileInfoType::Info(v) => &v.source_mapping.file_name,
+            FileInfoType::Err(v) => &v.file_name,
+        });
+
+        values[0].cmp(values[1])
+    }
 }
 
 pub enum FileInfoType {
     Info(SourceMappingInfo),
-    Err((String, Error)),
+    Err(SourceMappingErrorInfo),
+}
+
+pub struct SourceMappingErrorInfo {
+    file: String,
+    error: Error,
+    file_name: String,
+}
+
+impl SourceMappingErrorInfo {
+    pub fn new(file: String, error: Error) -> Self {
+        let file_name = match file.rfind('/') {
+            Some(pos) => file.get((pos + 1)..).unwrap_or(&file),
+            None => &file,
+        }
+        .to_string();
+
+        SourceMappingErrorInfo { file, error, file_name }
+    }
+}
+
+#[derive(PartialEq)]
+pub enum FileInfoSort {
+    Size,
+    Name,
 }
 
 pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
@@ -95,16 +197,11 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 .items
                 .iter()
                 .map(|info| {
-                    let source_path_len = app.path_state.path_input.value().len();
-                    let path = match info {
-                        FileInfoType::Info(info) => info.source_mapping.file(),
-                        FileInfoType::Err((file, _)) => file,
+                    let file_name = match info {
+                        FileInfoType::Info(info) => &info.source_mapping.file_name,
+                        FileInfoType::Err(error_info) => &error_info.file_name,
                     };
-                    let mut content = vec![
-                        "./".into(),
-                        (path[source_path_len..].trim_start_matches('/')).into(),
-                        " ".into(),
-                    ];
+                    let mut content = vec!["./".into(), file_name.into(), " ".into()];
 
                     if let FileInfoType::Info(info) = info {
                         content
@@ -124,8 +221,17 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 render_mapping_info(f, &mut app.file_info_state, item, is_focused, chunks[1]);
 
                 block = block.title(
-                    Title::from(Line::from(vec![" ↑↓ jk".key().into(), " select ".white().into()]))
-                        .position(Position::Bottom),
+                    Title::from(Line::from(vec![
+                        " ↑↓ jk".key().into(),
+                        " select ".white().into(),
+                        "|".dark_gray().into(),
+                        " sort: ".white().into(),
+                        "s".key().into(),
+                        "ize, ".white().into(),
+                        "n".key().into(),
+                        "ame ".white().into(),
+                    ]))
+                    .position(Position::Bottom),
                 );
             }
 
@@ -228,7 +334,7 @@ pub fn render_mapping_info(
 
             text
         }
-        FileInfoType::Err((_path, err)) => err.to_string().into(),
+        FileInfoType::Err(error_info) => error_info.error.to_string().into(),
     };
 
     let mut block = default_block();

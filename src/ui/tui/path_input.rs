@@ -14,7 +14,7 @@ use crate::core::analyze_path;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, StatefulList},
-    file_list::{AnalyzeDoneState, FileInfoType},
+    file_list::{AnalyzeDoneState, FileInfoSort, FileInfoType, SourceMappingErrorInfo},
     widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };
@@ -59,16 +59,14 @@ impl FocusableWidgetState for PathState {
                 *state_w.write().unwrap() = Some(AnalyzeState::Pending(files_checked));
                 match result {
                     Ok(info) => file_infos.push(FileInfoType::Info(info)),
-                    Err(err) => file_infos.push(FileInfoType::Err((file.to_owned(), err))),
+                    Err(err) => file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err))),
                 }
             });
 
             match result {
                 Ok(_) => {
-                    *state_w.write().unwrap() = Some(AnalyzeState::Done(AnalyzeDoneState {
-                        files_checked,
-                        file_infos: StatefulList::with_items(file_infos),
-                    }));
+                    *state_w.write().unwrap() =
+                        Some(AnalyzeState::Done(AnalyzeDoneState::new(files_checked, file_infos)));
                 }
                 Err(err) => {
                     *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));

@@ -133,6 +133,7 @@ pub struct SourceMapping {
     source_file_len: u64,
     // Field not present in source JSON, but needed for presenting meaningful results
     source_map_len: u64,
+    pub file_name: String,
 }
 
 impl SourceMapping {
@@ -196,6 +197,12 @@ impl SourceMapping {
             }
         }
 
+        let file_name = match raw_mapping.file.rfind('/') {
+            Some(pos) => raw_mapping.file.get((pos + 1)..).unwrap_or(&raw_mapping.file),
+            None => &raw_mapping.file,
+        }
+        .to_string();
+
         Ok(SourceMapping {
             file: raw_mapping.file,
             source_root: raw_mapping.source_root,
@@ -204,6 +211,7 @@ impl SourceMapping {
             mappings,
             source_file_len: 0,
             source_map_len: 0,
+            file_name,
         })
     }
 

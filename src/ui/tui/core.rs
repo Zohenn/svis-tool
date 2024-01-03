@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
 
@@ -74,6 +76,32 @@ impl<T> StatefulList<T> {
         match self.state.selected() {
             Some(i) => self.items.get(i),
             None => None,
+        }
+    }
+
+    pub fn sort(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering, sort_order: SortOrder) {
+        self.items.sort_by(|a, b| {
+            let result = compare(a, b);
+
+            match sort_order {
+                SortOrder::Asc => result,
+                SortOrder::Desc => result.reverse(),
+            }
+        });
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum SortOrder {
+    Asc,
+    Desc,
+}
+
+impl SortOrder {
+    pub fn reverse(&self) -> Self {
+        match self {
+            SortOrder::Asc => SortOrder::Desc,
+            SortOrder::Desc => SortOrder::Asc,
         }
     }
 }

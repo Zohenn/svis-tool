@@ -68,10 +68,6 @@ impl<T> StatefulList<T> {
         self.state.select(None);
     }
 
-    pub fn has_selection(&self) -> bool {
-        self.state.selected().is_some()
-    }
-
     pub fn selected_item(&self) -> Option<&T> {
         match self.state.selected() {
             Some(i) => self.items.get(i),

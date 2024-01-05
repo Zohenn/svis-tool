@@ -1,20 +1,14 @@
 use std::thread;
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::{
-    prelude::Rect,
-    style::*,
-    text::Line,
-    widgets::{Block, Borders, Paragraph},
-    Frame,
-};
+use ratatui::{prelude::Rect, style::*, text::Line, widgets::Paragraph, Frame};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::core::analyze_path;
 
 use super::{
-    core::{FocusableWidgetState, HandleEventResult, StatefulList},
-    file_list::{AnalyzeDoneState, FileInfoSort, FileInfoType, SourceMappingErrorInfo},
+    core::{FocusableWidgetState, HandleEventResult},
+    file_list::{AnalyzeDoneState, FileInfoType, SourceMappingErrorInfo},
     widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };

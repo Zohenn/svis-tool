@@ -1,5 +1,6 @@
 mod core;
 mod file_list;
+mod mapping_info;
 mod path_input;
 mod widget_utils;
 
@@ -22,7 +23,8 @@ use ratatui::{
 
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{render_file_list, AnalyzeState, FileInfoState, FileListState},
+    file_list::{render_file_list, AnalyzeState, FileListState},
+    mapping_info::FileInfoState,
     path_input::{render_path_input, PathState},
 };
 

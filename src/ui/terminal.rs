@@ -1,10 +1,7 @@
 use console::Style;
 
 use crate::{
-    core::{
-        analyzer::{SourceMappingFileInfo, SourceMappingInfo},
-        parser::SourceMapping,
-    },
+    core::analyzer::{SourceMappingFileInfo, SourceMappingInfo},
     ui::utils::{format_bytes, format_percentage, without_relative_part},
 };
 

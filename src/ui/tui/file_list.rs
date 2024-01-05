@@ -10,7 +10,7 @@ use ratatui::{
     text::{Line, Text},
     widgets::{
         block::{Position, Title},
-        List, ListItem, Paragraph, Wrap,
+        Block, List, ListItem, Paragraph, Widget, Wrap,
     },
     Frame,
 };
@@ -344,7 +344,7 @@ pub fn render_mapping_info(
 
     let block_inner = block.inner(rect);
 
-    let height = calculate_height(&text, block_inner.width);
+    let height = calculate_height(&text, block.clone(), rect);
 
     file_info_state.max_height = block_inner.height;
     file_info_state.text_height = height;
@@ -376,22 +376,27 @@ impl Default for FileInfoState {
 
 impl FocusableWidgetState for FileInfoState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
-        match event.code {
-            KeyCode::Down | KeyCode::Char('j') => {
-                if self.scroll == self.text_height {
-                    self.scroll = 0;
-                } else {
-                    self.scroll += 1;
+        let max_scroll = self.text_height.saturating_sub(self.max_height);
+        if max_scroll > 0 {
+            match event.code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if self.scroll == max_scroll {
+                        self.scroll = 0;
+                    } else {
+                        self.scroll += 1;
+                    }
                 }
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if self.scroll == 0 {
-                    self.scroll = self.text_height;
-                } else {
-                    self.scroll -= 1;
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.scroll == 0 {
+                        self.scroll = max_scroll;
+                    } else {
+                        self.scroll -= 1;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
+        } else {
+            self.scroll = 0;
         }
 
         if matches!(event.code, KeyCode::Esc) {
@@ -402,16 +407,24 @@ impl FocusableWidgetState for FileInfoState {
     }
 }
 
-fn calculate_height(text: &Text, max_line_width: u16) -> u16 {
-    let mut sum = 0;
+fn calculate_height<'a>(text: &Text, block: Block, area: Rect) -> u16 {
+    let area = Rect::new(area.x, area.y, area.width, u16::MAX / area.width);
+    let mut buffer = Buffer::empty(area);
 
-    for line in &text.lines {
-        let line_width = line.width() as u16;
-        sum += line_width / max_line_width;
-        if line_width % max_line_width > 0 {
-            sum += 1;
+    let paragraph = Paragraph::new(text.clone())
+        .block(block)
+        .wrap(Wrap { trim: true })
+        .scroll((0, 0));
+
+    paragraph.render(area, &mut buffer);
+
+    for y in buffer.area.top()..buffer.area.bottom() {
+        let x = buffer.area.left() + 1;
+
+        if buffer.get(x, y).symbol == " " {
+            return y - 1 - area.y;
         }
     }
 
-    sum
+    0
 }

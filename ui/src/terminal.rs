@@ -1,9 +1,8 @@
 use console::Style;
 
-use crate::{
-    core::analyzer::{SourceMappingFileInfo, SourceMappingInfo},
-    ui::utils::{format_bytes, format_percentage, without_relative_part},
-};
+use core::analyzer::{SourceMappingFileInfo, SourceMappingInfo};
+
+use crate::utils::{format_bytes, format_percentage, without_relative_part};
 
 pub struct Styles {
     pub file: Style,

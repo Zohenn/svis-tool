@@ -73,9 +73,9 @@ pub fn vlq_decode(base64_str: &str) -> Result<[i32; 4]> {
     Ok(result)
 }
 
-#[cfg(test)]
+#[cfg(any(test, rust_analyzer))]
 mod tests {
-    use crate::core::vlq::vlq_decode;
+    use crate::vlq::vlq_decode;
 
     #[test]
     fn example() {

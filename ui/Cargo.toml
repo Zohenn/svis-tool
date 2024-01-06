@@ -1,0 +1,13 @@
+[package]
+name = "ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1.0.75"
+console = "0.15.7"
+crossterm = "0.27.0"
+ratatui = "0.24.0"
+tui-input = "0.8.0"
+clap = "4.4.13"
+core = { path = "../core" }

@@ -8,10 +8,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::{
-    core::analyzer::SourceMappingFileInfo,
-    ui::utils::{format_bytes, format_percentage, without_relative_part},
-};
+use core::analyzer::SourceMappingFileInfo;
+
+use crate::utils::{format_bytes, format_percentage, without_relative_part};
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult},

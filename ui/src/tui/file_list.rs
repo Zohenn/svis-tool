@@ -15,7 +15,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::{core::analyzer::SourceMappingInfo, ui::utils::format_bytes};
+use core::analyzer::SourceMappingInfo;
+
+use crate::utils::format_bytes;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},

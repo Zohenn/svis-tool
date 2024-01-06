@@ -1,19 +1,28 @@
-[package]
-name = "sourcemap-vis"
+[workspace]
+members = ["core", "ui"]
+default-members = ["core", "ui"]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
+# [package]
+# version = "0.1.0"
+# name = "sourcemap_vis"
+# edition = "2021"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-anyhow = "1.0.75"
-base64 = "0.21.4"
-console = "0.15.7"
-crossterm = "0.27.0"
-ratatui = "0.24.0"
-serde = { version = "1.0.189", features = ["derive"] }
-serde_json = "1.0.107"
-tui-input = "0.8.0"
+# [dependencies]
+# anyhow = "1.0.75"
+# base64 = "0.21.4"
+# console = "0.15.7"
+# crossterm = "0.27.0"
+# ratatui = "0.24.0"
+# serde = { version = "1.0.189", features = ["derive"] }
+# serde_json = "1.0.107"
+# tui-input = "0.8.0"
 
 [profile.release]
 # lto = true

@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::Rect, style::*, text::Line, widgets::Paragraph, Frame};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use crate::core::analyze_path;
+use core::analyze_path;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult},

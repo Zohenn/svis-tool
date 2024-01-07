@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Margin, Rect},
     style::{Style, Stylize},
     text::{Line, Text},
-    widgets::{Block, Paragraph, Widget, Wrap},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget, Wrap},
     Frame,
 };
 
@@ -124,12 +124,34 @@ pub fn render_mapping_info(
             .scroll((file_info_state.scroll, 0)),
         rect,
     );
+
+    let scrollbar = Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"));
+    let mut scrollbar_state =
+        ScrollbarState::new(file_info_state.max_scroll() as usize).position(file_info_state.scroll as usize);
+
+    f.render_stateful_widget(
+        scrollbar,
+        rect.inner(&Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut scrollbar_state,
+    );
 }
 
 pub struct FileInfoState {
     pub scroll: u16,
     pub text_height: u16,
     pub max_height: u16,
+}
+
+impl FileInfoState {
+    fn max_scroll(&self) -> u16 {
+        self.text_height.saturating_sub(self.max_height)
+    }
 }
 
 impl Default for FileInfoState {
@@ -144,7 +166,7 @@ impl Default for FileInfoState {
 
 impl FocusableWidgetState for FileInfoState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
-        let max_scroll = self.text_height.saturating_sub(self.max_height);
+        let max_scroll = self.max_scroll();
         if max_scroll > 0 {
             match event.code {
                 KeyCode::Down | KeyCode::Char('j') => {
@@ -176,6 +198,8 @@ impl FocusableWidgetState for FileInfoState {
 }
 
 fn calculate_height<'a>(text: &Text, block: Block, area: Rect) -> u16 {
+    // Total area of a paragraph must fit into u16, so height of the rect is computed
+    // accordingly using max line width.
     let area = Rect::new(area.x, area.y, area.width, u16::MAX / area.width);
     let mut buffer = Buffer::empty(area);
 

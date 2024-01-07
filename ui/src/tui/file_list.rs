@@ -103,12 +103,12 @@ impl AnalyzeDoneState {
 
     fn sort_by_size(a: &FileInfoType, b: &FileInfoType) -> Ordering {
         match (a, b) {
-            (FileInfoType::Info(a), FileInfoType::Info(b)) => b
+            (FileInfoType::Info(a), FileInfoType::Info(b)) => a
                 .source_mapping
                 .source_file_without_source_map_len()
-                .cmp(&a.source_mapping.source_file_without_source_map_len()),
-            (FileInfoType::Info(_), FileInfoType::Err(_)) => Ordering::Less,
-            (FileInfoType::Err(_), FileInfoType::Info(_)) => Ordering::Greater,
+                .cmp(&b.source_mapping.source_file_without_source_map_len()),
+            (FileInfoType::Info(_), FileInfoType::Err(_)) => Ordering::Greater,
+            (FileInfoType::Err(_), FileInfoType::Info(_)) => Ordering::Less,
             (FileInfoType::Err(_), FileInfoType::Err(_)) => Ordering::Equal,
         }
     }

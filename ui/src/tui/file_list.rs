@@ -175,7 +175,7 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 .constraints(constraints.as_ref())
                 .split(rect);
 
-            let messages: Vec<ListItem> = state
+            let file_infos: Vec<ListItem> = state
                 .file_infos
                 .items
                 .iter()
@@ -189,6 +189,15 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     if let FileInfoType::Info(info) = info {
                         content
                             .push(format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight());
+                        content.extend(
+                            [
+                                " (".into(),
+                                info.info_by_file.len().to_string().highlight2(),
+                                " files".highlight2(),
+                                ")".into(),
+                            ]
+                            .into_iter(),
+                        );
                     } else {
                         content.push("!".error());
                     }
@@ -222,11 +231,10 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 block = block.border_style(Style::default().yellow());
             }
 
-            let messages = List::new(messages)
+            let file_infos_list = List::new(file_infos)
                 .block(block)
-                .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
-                .highlight_symbol(">> ");
-            f.render_stateful_widget(messages, chunks[0], &mut state.file_infos.state);
+                .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+            f.render_stateful_widget(file_infos_list, chunks[0], &mut state.file_infos.state);
         }
         None => {
             centered_text(f, "Enter path to start", rect);

@@ -59,8 +59,9 @@ impl FocusableWidgetState for PathState {
 
             match result {
                 Ok(_) => {
-                    *state_w.write().unwrap() =
-                        Some(AnalyzeState::Done(AnalyzeDoneState::new(files_checked, file_infos)));
+                    let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
+                    done_state.file_infos.next();
+                    *state_w.write().unwrap() = Some(AnalyzeState::Done(done_state));
                 }
                 Err(err) => {
                     *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));
@@ -68,7 +69,7 @@ impl FocusableWidgetState for PathState {
             }
         });
 
-        HandleEventResult::Blur
+        HandleEventResult::ChangeFocus(FocusableWidget::FileList)
     }
 }
 

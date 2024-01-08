@@ -45,6 +45,11 @@ pub fn render_mapping_info(
                         ".".into(),
                     ]),
                     Line::from(vec![
+                        "Number of files: ".into(),
+                        info.info_by_file.len().to_string().highlight(),
+                        ".".into(),
+                    ]),
+                    Line::from(vec![
                         "Size contribution per file (all paths are relative to ".into(),
                         sources_root.bold().into(),
                         "):".into(),

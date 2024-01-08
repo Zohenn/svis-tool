@@ -45,7 +45,7 @@ pub struct App {
 impl<'a> Default for App {
     fn default() -> App {
         App {
-            focused_widget: None,
+            focused_widget: Some(FocusableWidget::PathInput),
             path_state: PathState::default(),
             file_list_state: FileListState {
                 analyze_state: Arc::new(RwLock::new(None)),
@@ -115,7 +115,6 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(2)
         .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Min(1)].as_ref())
         .split(f.size());
 

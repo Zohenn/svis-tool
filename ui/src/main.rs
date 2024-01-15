@@ -16,7 +16,7 @@ use tui::{run_tui_app, App};
 use ui::terminal::{get_default_styles, print_file_info};
 
 fn main() -> Result<()> {
-    let matches = Command::new("sourcemap-vis")
+    let matches = Command::new("svis-tool")
         .arg(arg!(-t --tui "run as tui app").default_value("true").default_value_if(
             "simple",
             ArgPredicate::IsPresent,

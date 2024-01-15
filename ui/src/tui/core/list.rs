@@ -1,27 +1,6 @@
 use std::cmp::Ordering;
 
-use crossterm::event::KeyEvent;
 use ratatui::widgets::ListState;
-
-use super::{App, FocusableWidget};
-
-pub enum HandleEventResult {
-    Blur,
-    KeepFocus,
-    ChangeFocus(FocusableWidget),
-    Callback(fn(&mut App) -> HandleEventResult), //Box<dyn FnMut(&mut App) -> HandleEventResult>),
-}
-
-pub trait FocusableWidgetState {
-    fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult;
-
-    fn callback(_app: &mut App) -> HandleEventResult
-    where
-        Self: Sized,
-    {
-        HandleEventResult::KeepFocus
-    }
-}
 
 pub struct StatefulList<T> {
     pub state: ListState,

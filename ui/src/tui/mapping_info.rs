@@ -2,24 +2,92 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Margin, Rect},
-    style::{Style, Stylize},
+    style::*,
     text::{Line, Text},
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Widget, Wrap},
+    widgets::{
+        block::{Position, Title},
+        *,
+    },
     Frame,
 };
 
 use core::analyzer::SourceMappingFileInfo;
+use std::collections::HashSet;
 
 use crate::utils::{format_bytes, format_percentage, without_relative_part};
 
 use super::{
-    core::{FocusableWidgetState, HandleEventResult},
+    core::{
+        tree::{Tree, TreeState},
+        FocusableWidgetState, HandleEventResult,
+    },
     file_list::FileInfoType,
     widget_utils::{default_block, CustomStyles},
     FocusableWidget,
 };
 
 pub fn render_mapping_info(
+    f: &mut Frame,
+    file_info_state: &mut FileInfoState,
+    info: &FileInfoType,
+    is_focused: bool,
+    rect: Rect,
+) {
+    match file_info_state.view_type {
+        FileInfoViewType::Tree if matches!(info, FileInfoType::Info(_)) => {
+            render_tree_info(f, file_info_state, info, is_focused, rect)
+        }
+        _ => render_paragraph_info(f, file_info_state, info, is_focused, rect),
+    }
+}
+
+fn render_tree_info(
+    f: &mut Frame,
+    file_info_state: &mut FileInfoState,
+    info: &FileInfoType,
+    is_focused: bool,
+    rect: Rect,
+) {
+    let FileInfoType::Info(info) = info else { unreachable!() };
+
+    let mapping = &info.source_mapping;
+    let source_file_len = mapping.source_file_without_source_map_len();
+
+    let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
+        without_relative_part(info.get_file_name(item.file))
+    });
+    let (paths, list_items) = tree.as_list_items(&file_info_state.tree_state, |file_info| {
+        vec![
+            without_relative_part(info.get_file_name(file_info.file))
+                .split('/')
+                .last()
+                .unwrap()
+                .into(),
+            " ".into(),
+            format_bytes(file_info.bytes as u64).highlight().into(),
+            " (".into(),
+            format_percentage(file_info.bytes as u64, source_file_len)
+                .highlight2()
+                .into(),
+            ")".into(),
+        ]
+    });
+
+    file_info_state.list_len = list_items.len();
+    file_info_state.paths = paths;
+
+    let block = get_block(is_focused);
+
+    f.render_stateful_widget(
+        List::new(list_items)
+            .block(block)
+            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+        rect,
+        &mut file_info_state.list_state,
+    );
+}
+
+fn render_paragraph_info(
     f: &mut Frame,
     file_info_state: &mut FileInfoState,
     info: &FileInfoType,
@@ -110,10 +178,7 @@ pub fn render_mapping_info(
         FileInfoType::Err(error_info) => error_info.error.to_string().into(),
     };
 
-    let mut block = default_block();
-    if is_focused {
-        block = block.border_style(Style::default().yellow());
-    }
+    let block = get_block(is_focused);
 
     let block_inner = block.inner(rect);
 
@@ -147,10 +212,31 @@ pub fn render_mapping_info(
     );
 }
 
+fn get_block<'a>(is_focused: bool) -> Block<'a> {
+    let mut block = default_block();
+    if is_focused {
+        block = block
+            .border_style(Style::default().yellow())
+            .title(Title::from(Line::from(vec![" t".key(), "ree toggle ".white()])).position(Position::Bottom));
+    }
+
+    block
+}
+
+pub enum FileInfoViewType {
+    Tree,
+    Paragraph,
+}
+
 pub struct FileInfoState {
     pub scroll: u16,
     pub text_height: u16,
     pub max_height: u16,
+    pub list_state: ListState,
+    pub list_len: usize,
+    pub tree_state: TreeState,
+    pub paths: Vec<String>,
+    pub view_type: FileInfoViewType,
 }
 
 impl FileInfoState {
@@ -161,16 +247,92 @@ impl FileInfoState {
 
 impl Default for FileInfoState {
     fn default() -> Self {
+        let tree_state = TreeState {
+            expanded: HashSet::from(["src".into(), "node_modules".into()]),
+        };
+
         Self {
             scroll: 0,
             text_height: 0,
             max_height: 0,
+            list_state: ListState::default(),
+            list_len: 0,
+            tree_state,
+            paths: vec![],
+            view_type: FileInfoViewType::Tree,
         }
     }
 }
 
 impl FocusableWidgetState for FileInfoState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
+        match event.code {
+            KeyCode::Char('t') => {
+                self.view_type = match self.view_type {
+                    FileInfoViewType::Tree => FileInfoViewType::Paragraph,
+                    FileInfoViewType::Paragraph => FileInfoViewType::Tree,
+                };
+            }
+            _ => match self.view_type {
+                FileInfoViewType::Tree => self.handle_tree_events(event),
+                FileInfoViewType::Paragraph => self.handle_paragraph_events(event),
+            },
+        }
+
+        if matches!(event.code, KeyCode::Esc) {
+            self.list_state.select(None);
+            HandleEventResult::ChangeFocus(FocusableWidget::FileList)
+        } else {
+            HandleEventResult::KeepFocus
+        }
+    }
+}
+
+impl FileInfoState {
+    fn handle_tree_events(&mut self, event: KeyEvent) {
+        match event.code {
+            KeyCode::Down | KeyCode::Char('j') => {
+                let i = match self.list_state.selected() {
+                    Some(i) => {
+                        if i >= self.list_len - 1 {
+                            0
+                        } else {
+                            i + 1
+                        }
+                    }
+                    None => 0,
+                };
+                self.list_state.select(Some(i));
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                let i = match self.list_state.selected() {
+                    Some(i) => {
+                        if i == 0 {
+                            self.list_len - 1
+                        } else {
+                            i - 1
+                        }
+                    }
+                    None => 0,
+                };
+                self.list_state.select(Some(i));
+            }
+            KeyCode::Enter => {
+                let path = &self.paths[self.list_state.selected().unwrap_or(0)];
+
+                if !path.is_empty() {
+                    if self.tree_state.expanded.contains(path) {
+                        self.tree_state.expanded.remove(path);
+                    } else {
+                        self.tree_state.expanded.insert(path.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_paragraph_events(&mut self, event: KeyEvent) {
         let max_scroll = self.max_scroll();
         if max_scroll > 0 {
             match event.code {
@@ -192,12 +354,6 @@ impl FocusableWidgetState for FileInfoState {
             }
         } else {
             self.scroll = 0;
-        }
-
-        if matches!(event.code, KeyCode::Esc) {
-            HandleEventResult::ChangeFocus(FocusableWidget::FileList)
-        } else {
-            HandleEventResult::KeepFocus
         }
     }
 }

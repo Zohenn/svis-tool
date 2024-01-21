@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use core::analyzer::SourceMappingFileInfo;
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Add};
 
 use crate::utils::{format_bytes, format_percentage, without_relative_part};
 
@@ -41,6 +41,21 @@ pub fn render_mapping_info(
     }
 }
 
+#[derive(Clone, Copy)]
+struct TreeAggregation {
+    bytes: u64,
+}
+
+impl Add for TreeAggregation {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            bytes: self.bytes + rhs.bytes,
+        }
+    }
+}
+
 fn render_tree_info(
     f: &mut Frame,
     file_info_state: &mut FileInfoState,
@@ -52,10 +67,27 @@ fn render_tree_info(
 
     let mapping = &info.source_mapping;
     let source_file_len = mapping.source_file_without_source_map_len();
+    let aggregator_source_file_len = source_file_len;
 
     let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
         without_relative_part(info.get_file_name(item.file))
-    });
+    })
+    .with_aggregator(
+        |info| TreeAggregation {
+            bytes: info.bytes as u64,
+        },
+        move |aggregation| {
+            vec![
+                format_bytes(aggregation.bytes).highlight().into(),
+                " (".into(),
+                format_percentage(aggregation.bytes, aggregator_source_file_len)
+                    .highlight2()
+                    .into(),
+                ") ".into(),
+            ]
+        },
+    );
+
     let (paths, list_items) = tree.as_list_items(&file_info_state.tree_state, |file_info| {
         vec![
             without_relative_part(info.get_file_name(file_info.file))

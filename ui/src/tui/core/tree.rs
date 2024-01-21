@@ -1,5 +1,6 @@
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
+use std::ops::Add;
 
 use ratatui::prelude::*;
 use ratatui::widgets::ListItem;
@@ -21,11 +22,24 @@ pub struct TreeNode<D: Debug> {
     children: BTreeMap<String, TreeItem<D>>,
 }
 
-pub struct Tree<D: Debug> {
+pub struct Tree<D: Debug, A: Add<Output = A> + Copy> {
     pub items: TreeItem<D>,
+    aggregated_data: HashMap<String, A>,
+    aggregation_mapper: Option<Box<dyn Fn(&A) -> Vec<Span>>>,
 }
 
-impl<D: Debug> Tree<D> {
+#[derive(Clone, Copy)]
+pub struct NoAggregation;
+
+impl Add for NoAggregation {
+    type Output = NoAggregation;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        rhs
+    }
+}
+
+impl<D: Debug> Tree<D, NoAggregation> {
     pub fn from(items: Vec<D>, get_path: impl Fn(&D) -> &str) -> Self {
         let mut root_node: TreeNode<D> = TreeNode {
             key: String::new(),
@@ -68,9 +82,26 @@ impl<D: Debug> Tree<D> {
 
         Tree {
             items: TreeItem::Node(root_node),
+            aggregated_data: HashMap::new(),
+            aggregation_mapper: None,
         }
     }
 
+    pub fn with_aggregator<A: Add<Output = A> + Copy>(
+        self,
+        aggregator: impl Fn(&D) -> A + 'static,
+        aggregation_mapper: impl Fn(&A) -> Vec<Span> + 'static,
+    ) -> Tree<D, A> {
+        let aggregated_data = aggregate(&self.items, aggregator);
+        Tree {
+            items: self.items,
+            aggregated_data,
+            aggregation_mapper: Some(Box::new(aggregation_mapper)),
+        }
+    }
+}
+
+impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
     pub fn as_list_items(
         &self,
         state: &TreeState,
@@ -98,11 +129,18 @@ impl<D: Debug> Tree<D> {
                     let icon = if is_expanded { "▼ " } else { "► " };
 
                     paths.push(child_node.path.clone());
-                    items.push(ListItem::new(Line::from(vec![
-                        padding.clone().into(),
-                        icon.into(),
-                        (&child_node.key).into(),
-                    ])));
+
+                    let mut line_contents = vec![padding.clone().into(), icon.into(), (&child_node.key).into()];
+
+                    match (&self.aggregation_mapper, self.aggregated_data.get(&child_node.path)) {
+                        (Some(aggregation_mapper), Some(aggregation)) => {
+                            line_contents.push(" ".into());
+                            line_contents.append(&mut aggregation_mapper(aggregation));
+                        }
+                        _ => {}
+                    }
+
+                    items.push(ListItem::new(Line::from(line_contents)));
 
                     if is_expanded {
                         for child in child_node.children.values().rev() {
@@ -120,5 +158,39 @@ impl<D: Debug> Tree<D> {
         }
 
         (paths, items)
+    }
+}
+
+fn aggregate<D: Debug, A: Add<Output = A> + Copy>(
+    tree_item: &TreeItem<D>,
+    aggregator: impl Fn(&D) -> A,
+) -> HashMap<String, A> {
+    let mut aggregated_data: HashMap<String, A> = HashMap::new();
+
+    aggregate_inner(tree_item, &aggregator, &mut aggregated_data);
+
+    aggregated_data
+}
+
+fn aggregate_inner<D: Debug, A: Add<Output = A> + Copy>(
+    tree_item: &TreeItem<D>,
+    aggregator: &impl Fn(&D) -> A,
+    aggregated_data: &mut HashMap<String, A>,
+) -> A {
+    match tree_item {
+        TreeItem::Node(node) => {
+            let mut iter = node.children.values();
+            let mut aggregation = aggregate_inner(iter.next().unwrap(), aggregator, aggregated_data);
+
+            for child in iter {
+                aggregation = aggregation + aggregate_inner(child, aggregator, aggregated_data);
+            }
+
+            aggregated_data.insert(node.path.clone(), aggregation);
+            return aggregation;
+        }
+        TreeItem::Leaf(data) => {
+            return aggregator(data);
+        }
     }
 }

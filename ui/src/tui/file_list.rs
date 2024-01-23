@@ -21,7 +21,7 @@ use crate::utils::format_bytes;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},
-    mapping_info::render_mapping_info,
+    mapping_info::{render_mapping_info, FileInfoState},
     widget_utils::{centered_text, default_block, CustomStyles},
     App, FocusableWidget,
 };
@@ -44,8 +44,20 @@ impl<'a> FocusableWidgetState for FileListState {
                     state.file_infos.unselect();
                     return HandleEventResult::Blur;
                 }
-                KeyCode::Down | KeyCode::Char('j') => state.file_infos.next(),
-                KeyCode::Up | KeyCode::Char('k') => state.file_infos.previous(),
+                KeyCode::Down | KeyCode::Char('j') => {
+                    state.file_infos.next();
+                    return HandleEventResult::Callback(|app| {
+                        app.file_info_state = FileInfoState::default();
+                        HandleEventResult::KeepFocus
+                    });
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    state.file_infos.previous();
+                    return HandleEventResult::Callback(|app| {
+                        app.file_info_state = FileInfoState::default();
+                        HandleEventResult::KeepFocus
+                    });
+                }
                 KeyCode::Char('s') => {
                     state.sort(FileInfoSort::Size);
                 }

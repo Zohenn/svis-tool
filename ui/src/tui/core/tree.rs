@@ -15,11 +15,35 @@ pub enum TreeItem<D: Debug> {
     Leaf(D),
 }
 
+#[derive(Hash, PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+enum TreeItemType {
+    Node,
+    Leaf,
+}
+
+#[derive(Hash, PartialEq, Eq, PartialOrd, Debug, Clone)]
+struct TreeNodeChildKey {
+    key: String,
+    r#type: TreeItemType,
+}
+
+impl Ord for TreeNodeChildKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.r#type == other.r#type {
+            return self.key.cmp(&other.key);
+        } else if matches!(self.r#type, TreeItemType::Node) {
+            return std::cmp::Ordering::Less;
+        } else {
+            return std::cmp::Ordering::Greater;
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TreeNode<D: Debug> {
     key: String,
     path: String,
-    children: BTreeMap<String, TreeItem<D>>,
+    children: BTreeMap<TreeNodeChildKey, TreeItem<D>>,
 }
 
 pub struct Tree<D: Debug, A: Add<Output = A> + Copy> {
@@ -58,14 +82,19 @@ impl<D: Debug> Tree<D, NoAggregation> {
 
             if path_parts.len() > 0 {
                 for part in path_parts.into_iter() {
-                    let new_node_entry = node.children.entry(part.clone()).or_insert_with(|| {
+                    let map_key = TreeNodeChildKey {
+                        key: part,
+                        r#type: TreeItemType::Node,
+                    };
+
+                    let new_node_entry = node.children.entry(map_key.clone()).or_insert_with(|| {
                         let path = if node.path.is_empty() {
-                            part.clone()
+                            map_key.key.clone()
                         } else {
-                            node.path.clone() + "/" + &part
+                            node.path.clone() + "/" + &map_key.key
                         };
                         TreeItem::Node(TreeNode {
-                            key: part.clone(),
+                            key: map_key.key.clone(),
                             path,
                             children: BTreeMap::new(),
                         })
@@ -77,7 +106,13 @@ impl<D: Debug> Tree<D, NoAggregation> {
                 }
             }
 
-            node.children.insert(leaf, TreeItem::Leaf(item));
+            node.children.insert(
+                TreeNodeChildKey {
+                    key: leaf,
+                    r#type: TreeItemType::Leaf,
+                },
+                TreeItem::Leaf(item),
+            );
         }
 
         Tree {
@@ -113,11 +148,7 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
         let mut queue: VecDeque<(u8, &TreeItem<D>)> = VecDeque::new();
 
         match &self.items {
-            TreeItem::Node(node) => {
-                for child in node.children.values() {
-                    queue.push_back((0, child));
-                }
-            }
+            TreeItem::Node(node) => queue.extend(node.children.values().rev().map(|child| (0, child))),
             TreeItem::Leaf(_) => queue.push_back((0, &self.items)),
         }
 

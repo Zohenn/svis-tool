@@ -34,7 +34,7 @@ pub fn render_mapping_info(
     rect: Rect,
 ) {
     match file_info_state.view_type {
-        FileInfoViewType::Tree if matches!(info, FileInfoType::Info(_)) => {
+        FileInfoViewType::Tree if matches!(info, FileInfoType::Info(info) if !info.source_mapping.is_empty()) => {
             render_tree_info(f, file_info_state, info, is_focused, rect)
         }
         _ => render_paragraph_info(f, file_info_state, info, is_focused, rect),

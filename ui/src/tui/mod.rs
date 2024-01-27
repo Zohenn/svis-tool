@@ -28,7 +28,7 @@ use self::{
     path_input::{render_path_input, PathState},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum FocusableWidget {
     PathInput,
     FileList,
@@ -55,6 +55,29 @@ impl<'a> Default for App {
     }
 }
 
+impl App {
+    fn focused_widget_state(&mut self) -> Option<&mut dyn FocusableWidgetState> {
+        match self.focused_widget {
+            Some(FocusableWidget::PathInput) => Some(&mut self.path_state),
+            Some(FocusableWidget::FileList) => Some(&mut self.file_list_state),
+            Some(FocusableWidget::FileInfo) => Some(&mut self.file_info_state),
+            None => None,
+        }
+    }
+
+    fn handle_event_result(&mut self, result: HandleEventResult) {
+        match result {
+            HandleEventResult::Blur => self.focused_widget = None,
+            HandleEventResult::KeepFocus => {}
+            HandleEventResult::ChangeFocus(new_widget) => self.focused_widget = Some(new_widget),
+            HandleEventResult::Callback(callback) => {
+                let result = callback(self);
+                self.handle_event_result(result);
+            }
+        }
+    }
+}
+
 pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial_path: Option<&str>) -> Result<()> {
     app.path_state.path_input = app
         .path_state
@@ -66,24 +89,15 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
         // event::read is blocking, event::poll is not
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                match app.focused_widget {
-                    Some(widget) => {
-                        let widget_state: &mut dyn FocusableWidgetState = match widget {
-                            FocusableWidget::PathInput => &mut app.path_state,
-                            FocusableWidget::FileList => &mut app.file_list_state,
-                            FocusableWidget::FileInfo => &mut app.file_info_state,
-                        };
+                let previously_focused_widget = app.focused_widget;
 
-                        match widget_state.handle_events(key) {
-                            HandleEventResult::Blur => app.focused_widget = None,
-                            HandleEventResult::KeepFocus => {}
-                            HandleEventResult::ChangeFocus(new_widget) => app.focused_widget = Some(new_widget),
-                            HandleEventResult::Callback(callback) => match callback(&mut app) {
-                                HandleEventResult::Blur => app.focused_widget = None,
-                                HandleEventResult::KeepFocus => {}
-                                HandleEventResult::ChangeFocus(new_widget) => app.focused_widget = Some(new_widget),
-                                HandleEventResult::Callback(_) => unreachable!(),
-                            },
+                match app.focused_widget_state() {
+                    Some(widget_state) => {
+                        let result = widget_state.handle_events(key);
+                        app.handle_event_result(result);
+
+                        if app.focused_widget.is_some() && previously_focused_widget != app.focused_widget {
+                            app.focused_widget_state().unwrap().on_focus();
                         }
                     }
                     None => match key.code {

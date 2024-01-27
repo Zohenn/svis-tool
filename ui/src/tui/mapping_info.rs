@@ -318,6 +318,12 @@ impl FocusableWidgetState for FileInfoState {
             HandleEventResult::KeepFocus
         }
     }
+
+    fn on_focus(&mut self) {
+        if matches!(self.view_type, FileInfoViewType::Tree) {
+            self.list_state.select(Some(0));
+        }
+    }
 }
 
 impl FileInfoState {

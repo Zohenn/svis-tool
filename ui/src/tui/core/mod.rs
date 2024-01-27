@@ -10,11 +10,13 @@ pub enum HandleEventResult {
     Blur,
     KeepFocus,
     ChangeFocus(FocusableWidget),
-    Callback(fn(&mut App) -> HandleEventResult), //Box<dyn FnMut(&mut App) -> HandleEventResult>),
+    Callback(fn(&mut App) -> HandleEventResult),
 }
 
 pub trait FocusableWidgetState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult;
+
+    fn on_focus(&mut self) {}
 
     fn callback(_app: &mut App) -> HandleEventResult
     where

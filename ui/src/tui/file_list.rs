@@ -17,7 +17,7 @@ use ratatui::{
 
 use core::analyzer::SourceMappingInfo;
 
-use crate::utils::format_bytes;
+use crate::{keybindings, utils::format_bytes};
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},
@@ -217,26 +217,21 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                 })
                 .collect();
 
-            let label = Line::from(vec![" f".key().into(), "ile list ".white().into()]);
+            let label = Line::from(keybindings!("f""ile list"));
             let mut block = default_block().title(label);
 
             if let Some(item) = selected_item {
                 let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileInfo));
                 render_mapping_info(f, &mut app.file_info_state, item, is_focused, chunks[1]);
 
-                block = block.title(
-                    Title::from(Line::from(vec![
-                        " ↑↓ jk".key().into(),
-                        " select ".white().into(),
-                        "|".dark_gray().into(),
-                        " sort: ".white().into(),
-                        "s".key().into(),
-                        "ize, ".white().into(),
-                        "n".key().into(),
-                        "ame ".white().into(),
-                    ]))
-                    .position(Position::Bottom),
+                let title_contents = keybindings!(
+                    "↑↓ jk"" select ";
+                    "|".dark_gray().into(),
+                    " sort: ".white().into();,
+                    "s""ize, ", "n""ame"
                 );
+
+                block = block.title(Title::from(Line::from(title_contents)).position(Position::Bottom));
             }
 
             if is_focused {

@@ -14,7 +14,10 @@ use ratatui::{
 use core::analyzer::SourceMappingFileInfo;
 use std::{collections::HashSet, ops::Add};
 
-use crate::utils::{format_bytes, format_percentage, without_relative_part};
+use crate::{
+    keybindings,
+    utils::{format_bytes, format_percentage, without_relative_part},
+};
 
 use super::{
     core::{
@@ -249,7 +252,7 @@ fn get_block<'a>(is_focused: bool) -> Block<'a> {
     if is_focused {
         block = block
             .border_style(Style::default().yellow())
-            .title(Title::from(Line::from(vec![" t".key(), "ree toggle ".white()])).position(Position::Bottom));
+            .title(Title::from(Line::from(keybindings!("t""ree toggle"))).position(Position::Bottom));
     }
 
     block

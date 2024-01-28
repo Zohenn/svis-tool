@@ -25,3 +25,22 @@ pub trait FocusableWidgetState {
         HandleEventResult::KeepFocus
     }
 }
+
+#[macro_export]
+macro_rules! keybindings {
+    ( $($key:literal$rest:literal $(; $($sep:expr),+ ;)?),+ ) => {
+        vec![
+            " ".into(),
+            $(
+                $key.key().into(),
+                $rest.white().into(),
+                $(
+                    $(
+                        $sep,
+                    )+
+                )?
+            )+
+            " ".into(),
+        ]
+    };
+}

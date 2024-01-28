@@ -6,6 +6,8 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 
 use core::analyze_path;
 
+use crate::keybindings;
+
 use super::{
     core::{FocusableWidgetState, HandleEventResult},
     file_list::{AnalyzeDoneState, FileInfoType, SourceMappingErrorInfo},
@@ -79,7 +81,7 @@ pub fn render_path_input(f: &mut Frame, app: &App, rect: Rect) {
     let scroll = app.path_state.path_input.visual_scroll(width as usize);
     let is_focused = matches!(app.focused_widget, Some(FocusableWidget::PathInput));
 
-    let label = Line::from(vec![" p".key().into(), "ath ".white().into()]);
+    let label = Line::from(keybindings!("p""ath"));
 
     let input = Paragraph::new(app.path_state.path_input.value())
         .style(match is_focused {

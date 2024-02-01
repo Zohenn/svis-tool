@@ -1,6 +1,10 @@
 use std::{
-    cmp::Ordering,
-    sync::{Arc, RwLock},
+    cmp::Ordering as CmpOrdering,
+    fmt::Debug,
+    sync::{
+        atomic::{AtomicBool, AtomicU16, Ordering},
+        Arc, Mutex, RwLock,
+    },
 };
 
 use anyhow::Error;
@@ -27,18 +31,18 @@ use super::{
 };
 
 pub enum AnalyzeState {
-    Pending(u16),
+    Pending(AnalyzePendingState),
     Done(AnalyzeDoneState),
     Err(Box<anyhow::Error>),
 }
 
 pub struct FileListState {
-    pub analyze_state: Arc<RwLock<Option<AnalyzeState>>>,
+    pub analyze_state: Option<AnalyzeState>,
 }
 
 impl<'a> FocusableWidgetState for FileListState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
-        match &mut *self.analyze_state.write().unwrap() {
+        match &mut self.analyze_state {
             Some(AnalyzeState::Done(state)) => match event.code {
                 KeyCode::Esc => {
                     state.file_infos.unselect();
@@ -78,6 +82,13 @@ impl<'a> FocusableWidgetState for FileListState {
     }
 }
 
+#[derive(Default)]
+pub struct AnalyzePendingState {
+    pub count: Arc<AtomicU16>,
+    pub finished: Arc<AtomicBool>,
+    pub file_infos: Arc<Mutex<Vec<FileInfoType>>>,
+}
+
 pub struct AnalyzeDoneState {
     pub files_checked: u16,
     pub file_infos: StatefulList<FileInfoType>,
@@ -113,19 +124,19 @@ impl AnalyzeDoneState {
         self.file_infos.sort(sort_function, self.sort_order);
     }
 
-    fn sort_by_size(a: &FileInfoType, b: &FileInfoType) -> Ordering {
+    fn sort_by_size(a: &FileInfoType, b: &FileInfoType) -> CmpOrdering {
         match (a, b) {
             (FileInfoType::Info(a), FileInfoType::Info(b)) => a
                 .source_mapping
                 .source_file_without_source_map_len()
                 .cmp(&b.source_mapping.source_file_without_source_map_len()),
-            (FileInfoType::Info(_), FileInfoType::Err(_)) => Ordering::Greater,
-            (FileInfoType::Err(_), FileInfoType::Info(_)) => Ordering::Less,
-            (FileInfoType::Err(_), FileInfoType::Err(_)) => Ordering::Equal,
+            (FileInfoType::Info(_), FileInfoType::Err(_)) => CmpOrdering::Greater,
+            (FileInfoType::Err(_), FileInfoType::Info(_)) => CmpOrdering::Less,
+            (FileInfoType::Err(_), FileInfoType::Err(_)) => CmpOrdering::Equal,
         }
     }
 
-    fn sort_by_name(a: &FileInfoType, b: &FileInfoType) -> Ordering {
+    fn sort_by_name(a: &FileInfoType, b: &FileInfoType) -> CmpOrdering {
         let values = [a, b].map(|val| match val {
             FileInfoType::Info(v) => &v.source_mapping.file_name,
             FileInfoType::Err(v) => &v.file_name,
@@ -135,11 +146,13 @@ impl AnalyzeDoneState {
     }
 }
 
+#[derive(Debug)]
 pub enum FileInfoType {
     Info(SourceMappingInfo),
     Err(SourceMappingErrorInfo),
 }
 
+#[derive(Debug)]
 pub struct SourceMappingErrorInfo {
     pub file: String,
     pub error: Error,
@@ -167,14 +180,27 @@ pub enum FileInfoSort {
 pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
     let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileList));
 
-    match &mut *app.file_list_state.analyze_state.write().unwrap() {
-        Some(AnalyzeState::Pending(files_checked)) => {
-            centered_text(f, &format!("Files checked: {files_checked}"), rect);
+    // Looks kinda funny, but allows for mutex value to be moved out of struct.
+    let mut analyze_state = std::mem::replace(&mut app.file_list_state.analyze_state, None);
+
+    match analyze_state {
+        Some(AnalyzeState::Pending(pending_state)) => {
+            let files_checked = pending_state.count.load(Ordering::Relaxed);
+            centered_text(f, &format!("Files checked: {}", files_checked), rect);
+
+            if pending_state.finished.load(Ordering::Relaxed) {
+                let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
+                let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
+                done_state.file_infos.next();
+                analyze_state = Some(AnalyzeState::Done(done_state));
+            } else {
+                analyze_state = Some(AnalyzeState::Pending(pending_state));
+            }
         }
-        Some(AnalyzeState::Err(err)) => {
+        Some(AnalyzeState::Err(ref err)) => {
             centered_text(f, &err.to_string(), rect);
         }
-        Some(AnalyzeState::Done(state)) => {
+        Some(AnalyzeState::Done(ref mut state)) => {
             let selected_item = state.file_infos.selected_item();
 
             let constraints = match selected_item {
@@ -247,4 +273,6 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
             centered_text(f, "Enter path to start", rect);
         }
     }
+
+    app.file_list_state.analyze_state = analyze_state;
 }

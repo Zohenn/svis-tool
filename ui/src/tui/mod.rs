@@ -47,9 +47,7 @@ impl<'a> Default for App {
         App {
             focused_widget: Some(FocusableWidget::PathInput),
             path_state: PathState::default(),
-            file_list_state: FileListState {
-                analyze_state: Arc::new(RwLock::new(None)),
-            },
+            file_list_state: FileListState { analyze_state: None },
             file_info_state: FileInfoState::default(),
         }
     }
@@ -106,7 +104,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
                         }
                         KeyCode::Char('f') => {
                             app.focused_widget = Some(FocusableWidget::FileList);
-                            match &mut *app.file_list_state.analyze_state.write().unwrap() {
+                            match &mut app.file_list_state.analyze_state {
                                 Some(AnalyzeState::Done(state)) => {
                                     state.file_infos.next();
                                 }

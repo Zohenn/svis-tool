@@ -1,4 +1,4 @@
-use std::thread;
+use std::{sync::atomic::Ordering, thread};
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::Rect, style::*, text::Line, widgets::Paragraph, Frame};
@@ -10,7 +10,7 @@ use crate::keybindings;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{AnalyzeDoneState, FileInfoType, SourceMappingErrorInfo},
+    file_list::{AnalyzePendingState, FileInfoType, SourceMappingErrorInfo},
     widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };
@@ -42,31 +42,33 @@ impl FocusableWidgetState for PathState {
 
     fn callback(app: &mut App) -> HandleEventResult {
         let path = app.path_state.path_input.value().to_owned();
-        let state_w = app.file_list_state.analyze_state.clone();
+        let pending_state = AnalyzePendingState::default();
+        let files_checked_atomic = pending_state.count.clone();
+        let file_infos = pending_state.file_infos.clone();
+        let finished_atomic = pending_state.finished.clone();
+        app.file_list_state.analyze_state = Some(AnalyzeState::Pending(pending_state));
 
         thread::spawn(move || {
-            let mut file_infos = Vec::new();
-            let mut files_checked = 0;
-
-            *state_w.write().unwrap() = Some(AnalyzeState::Pending(files_checked));
+            let mut local_file_infos = vec![];
 
             let result = analyze_path(&path, |file, result| {
-                files_checked += 1;
-                *state_w.write().unwrap() = Some(AnalyzeState::Pending(files_checked));
+                files_checked_atomic.fetch_add(1, Ordering::Relaxed);
+
                 match result {
-                    Ok(info) => file_infos.push(FileInfoType::Info(info)),
-                    Err(err) => file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err))),
+                    Ok(info) => local_file_infos.push(FileInfoType::Info(info)),
+                    Err(err) => {
+                        local_file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err)))
+                    }
                 }
             });
 
             match result {
                 Ok(_) => {
-                    let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
-                    done_state.file_infos.next();
-                    *state_w.write().unwrap() = Some(AnalyzeState::Done(done_state));
+                    finished_atomic.store(true, Ordering::Relaxed);
+                    *file_infos.lock().unwrap() = local_file_infos;
                 }
                 Err(err) => {
-                    *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));
+                    // *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));
                 }
             }
         });

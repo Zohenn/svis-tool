@@ -8,10 +8,10 @@ use core::analyze_path;
 
 use crate::keybindings;
 
-use super::{
+use crate::tui::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{AnalyzePendingState, FileInfoType, OperationState, SourceMappingErrorInfo},
     widget_utils::{default_block, CustomStyles},
+    widgets::file_list::{AnalyzePendingState, FileInfoType, OperationState, SourceMappingErrorInfo},
     AnalyzeState, App, FocusableWidget,
 };
 

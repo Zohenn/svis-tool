@@ -1,13 +1,8 @@
 mod core;
-mod file_list;
-mod mapping_info;
-mod path_input;
 mod widget_utils;
+mod widgets;
 
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::time::Duration;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode};
@@ -23,9 +18,9 @@ use ratatui::{
 
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{render_file_list, AnalyzeState, FileListState},
-    mapping_info::FileInfoState,
-    path_input::{render_path_input, PathState},
+    widgets::file_list::{render_file_list, AnalyzeState, FileListState},
+    widgets::mapping_info::FileInfoState,
+    widgets::path_input::{render_path_input, PathState},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]

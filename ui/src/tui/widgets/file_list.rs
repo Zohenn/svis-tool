@@ -23,10 +23,10 @@ use core::analyzer::SourceMappingInfo;
 
 use crate::{keybindings, utils::format_bytes};
 
-use super::{
+use crate::tui::{
     core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},
-    mapping_info::{render_mapping_info, FileInfoState},
     widget_utils::{centered_text, default_block, CustomStyles},
+    widgets::mapping_info::{render_mapping_info, FileInfoState},
     App, FocusableWidget,
 };
 

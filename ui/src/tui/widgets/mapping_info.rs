@@ -19,13 +19,13 @@ use crate::{
     utils::{format_bytes, format_percentage, without_relative_part},
 };
 
-use super::{
+use crate::tui::{
     core::{
         tree::{Tree, TreeState},
         FocusableWidgetState, HandleEventResult,
     },
-    file_list::FileInfoType,
     widget_utils::{default_block, CustomStyles},
+    widgets::file_list::FileInfoType,
     FocusableWidget,
 };
 

@@ -10,7 +10,7 @@ use crate::keybindings;
 
 use super::{
     core::{FocusableWidgetState, HandleEventResult},
-    file_list::{AnalyzePendingState, FileInfoType, SourceMappingErrorInfo},
+    file_list::{AnalyzePendingState, FileInfoType, OperationState, SourceMappingErrorInfo},
     widget_utils::{default_block, CustomStyles},
     AnalyzeState, App, FocusableWidget,
 };
@@ -45,7 +45,8 @@ impl FocusableWidgetState for PathState {
         let pending_state = AnalyzePendingState::default();
         let files_checked_atomic = pending_state.count.clone();
         let file_infos = pending_state.file_infos.clone();
-        let finished_atomic = pending_state.finished.clone();
+        let state_atomic = pending_state.state.clone();
+        let error = pending_state.error.clone();
         app.file_list_state.analyze_state = Some(AnalyzeState::Pending(pending_state));
 
         thread::spawn(move || {
@@ -64,11 +65,12 @@ impl FocusableWidgetState for PathState {
 
             match result {
                 Ok(_) => {
-                    finished_atomic.store(true, Ordering::Relaxed);
+                    state_atomic.store(OperationState::Done as u8, Ordering::Relaxed);
                     *file_infos.lock().unwrap() = local_file_infos;
                 }
                 Err(err) => {
-                    // *state_w.write().unwrap() = Some(AnalyzeState::Err(err.into()));
+                    state_atomic.store(OperationState::Err as u8, Ordering::Relaxed);
+                    *error.lock().unwrap() = Some(err.into());
                 }
             }
         });

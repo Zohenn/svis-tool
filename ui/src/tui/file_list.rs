@@ -2,7 +2,7 @@ use std::{
     cmp::Ordering as CmpOrdering,
     fmt::Debug,
     sync::{
-        atomic::{AtomicBool, AtomicU16, Ordering},
+        atomic::{AtomicBool, AtomicU16, AtomicU8, Ordering},
         Arc, Mutex, RwLock,
     },
 };
@@ -82,11 +82,29 @@ impl<'a> FocusableWidgetState for FileListState {
     }
 }
 
+pub enum OperationState {
+    Pending,
+    Done,
+    Err,
+}
+
 #[derive(Default)]
 pub struct AnalyzePendingState {
     pub count: Arc<AtomicU16>,
-    pub finished: Arc<AtomicBool>,
+    pub state: Arc<AtomicU8>,
+    pub error: Arc<Mutex<Option<Box<anyhow::Error>>>>,
     pub file_infos: Arc<Mutex<Vec<FileInfoType>>>,
+}
+
+impl AnalyzePendingState {
+    pub fn get_state(&self) -> OperationState {
+        match self.state.load(Ordering::Relaxed) {
+            0 => OperationState::Pending,
+            1 => OperationState::Done,
+            2 => OperationState::Err,
+            _ => unreachable!(),
+        }
+    }
 }
 
 pub struct AnalyzeDoneState {
@@ -188,13 +206,24 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
             let files_checked = pending_state.count.load(Ordering::Relaxed);
             centered_text(f, &format!("Files checked: {}", files_checked), rect);
 
-            if pending_state.finished.load(Ordering::Relaxed) {
-                let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
-                let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
-                done_state.file_infos.next();
-                analyze_state = Some(AnalyzeState::Done(done_state));
-            } else {
-                analyze_state = Some(AnalyzeState::Pending(pending_state));
+            match pending_state.get_state() {
+                OperationState::Done => {
+                    let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
+                    let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
+                    done_state.file_infos.next();
+                    analyze_state = Some(AnalyzeState::Done(done_state));
+                }
+                OperationState::Pending => {
+                    analyze_state = Some(AnalyzeState::Pending(pending_state));
+                }
+                OperationState::Err => {
+                    let error = Arc::try_unwrap(pending_state.error)
+                        .unwrap()
+                        .into_inner()
+                        .unwrap()
+                        .unwrap();
+                    analyze_state = Some(AnalyzeState::Err(error));
+                }
             }
         }
         Some(AnalyzeState::Err(ref err)) => {

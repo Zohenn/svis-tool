@@ -3,7 +3,7 @@ use std::{
     fmt::Debug,
     sync::{
         atomic::{AtomicU16, AtomicU8, Ordering},
-        Arc, Mutex,
+        mpsc, Arc, Mutex,
     },
 };
 
@@ -18,8 +18,9 @@ use ratatui::{
     },
     Frame,
 };
+use threadpool::Builder as ThreadPoolBuilder;
 
-use core::{analyze_path, analyzer::SourceMappingInfo};
+use core::{analyze_path, analyzer::SourceMappingInfo, discover_files, handle_file};
 
 use crate::{keybindings, utils::format_bytes};
 
@@ -50,29 +51,38 @@ impl FileListState {
         self.analyze_state = Some(AnalyzeState::Pending(pending_state));
 
         std::thread::spawn(move || {
-            let mut local_file_infos = vec![];
-
-            let result = analyze_path(&path, |file, result| {
-                files_checked_atomic.fetch_add(1, Ordering::Relaxed);
-
-                match result {
-                    Ok(info) => local_file_infos.push(FileInfoType::Info(info)),
-                    Err(err) => {
-                        local_file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err)))
-                    }
-                }
-            });
-
-            match result {
-                Ok(_) => {
-                    state_atomic.store(OperationState::Done as u8, Ordering::Relaxed);
-                    *file_infos.lock().unwrap() = local_file_infos;
-                }
+            let files_to_check = match discover_files(&path) {
+                Ok(files_to_check) => files_to_check,
                 Err(err) => {
-                    state_atomic.store(OperationState::Err as u8, Ordering::Relaxed);
                     *error.lock().unwrap() = err.into();
+                    state_atomic.store(OperationState::Err as u8, Ordering::Relaxed);
+                    return;
                 }
+            };
+
+            let thread_pool = ThreadPoolBuilder::new().build();
+
+            let (sender, receiver) = mpsc::channel::<FileInfoType>();
+
+            for file in files_to_check {
+                let sender = sender.clone();
+                let files_checked_atomic = files_checked_atomic.clone();
+
+                thread_pool.execute(move || {
+                    let file_info = match handle_file(&file) {
+                        Ok(info) => FileInfoType::Info(info),
+                        Err(err) => FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err)),
+                    };
+
+                    sender.send(file_info).unwrap();
+                    files_checked_atomic.fetch_add(1, Ordering::Relaxed);
+                });
             }
+
+            drop(sender);
+
+            *file_infos.lock().unwrap() = receiver.iter().collect::<Vec<_>>();
+            state_atomic.store(OperationState::Done as u8, Ordering::Relaxed);
         });
     }
 }
@@ -329,7 +339,20 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     "s""ize, ", "n""ame"
                 );
 
-                block = block.title(Title::from(Line::from(title_contents)).position(Position::Bottom));
+                block = block
+                    .title(Title::from(Line::from(title_contents)).position(Position::Bottom))
+                    .title(
+                        Title::from(Line::from(
+                            format!(
+                                " {}/{} ",
+                                state.file_infos.state.selected().unwrap() + 1,
+                                state.file_infos.items.len()
+                            )
+                            .white(),
+                        ))
+                        .position(Position::Bottom)
+                        .alignment(Alignment::Right),
+                    );
             }
 
             if is_focused {

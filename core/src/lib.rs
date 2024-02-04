@@ -12,6 +12,16 @@ pub fn analyze_path(
     path: &str,
     mut on_file_result: impl FnMut(&str, Result<SourceMappingInfo, Error>) -> (),
 ) -> Result<()> {
+    let files_to_check = discover_files(path)?;
+
+    for file in files_to_check.iter() {
+        on_file_result(file, handle_file(file));
+    }
+
+    Ok(())
+}
+
+pub fn discover_files(path: &str) -> Result<Vec<String>> {
     let path_meta = std::fs::metadata(path)?;
 
     let mut files_to_check: Vec<String> = vec![];
@@ -35,14 +45,10 @@ pub fn analyze_path(
 
     files_to_check.sort();
 
-    for file in files_to_check.iter() {
-        on_file_result(file, handle_file(file));
-    }
-
-    Ok(())
+    Ok(files_to_check)
 }
 
-fn handle_file(file: &str) -> Result<SourceMappingInfo> {
+pub fn handle_file(file: &str) -> Result<SourceMappingInfo> {
     let (file_contents, mapping) = parse_file_by_path(file)?;
 
     let info = calculate_size_by_file(&file_contents, mapping)?;

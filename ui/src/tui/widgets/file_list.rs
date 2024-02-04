@@ -2,8 +2,8 @@ use std::{
     cmp::Ordering as CmpOrdering,
     fmt::Debug,
     sync::{
-        atomic::{AtomicBool, AtomicU16, AtomicU8, Ordering},
-        Arc, Mutex, RwLock,
+        atomic::{AtomicU16, AtomicU8, Ordering},
+        Arc, Mutex,
     },
 };
 
@@ -19,7 +19,7 @@ use ratatui::{
     Frame,
 };
 
-use core::analyzer::SourceMappingInfo;
+use core::{analyze_path, analyzer::SourceMappingInfo};
 
 use crate::{keybindings, utils::format_bytes};
 
@@ -38,6 +38,43 @@ pub enum AnalyzeState {
 
 pub struct FileListState {
     pub analyze_state: Option<AnalyzeState>,
+}
+
+impl FileListState {
+    pub fn analyze_path(&mut self, path: String) {
+        let pending_state = AnalyzePendingState::default();
+        let files_checked_atomic = pending_state.count.clone();
+        let file_infos = pending_state.file_infos.clone();
+        let state_atomic = pending_state.state.clone();
+        let error = pending_state.error.clone();
+        self.analyze_state = Some(AnalyzeState::Pending(pending_state));
+
+        std::thread::spawn(move || {
+            let mut local_file_infos = vec![];
+
+            let result = analyze_path(&path, |file, result| {
+                files_checked_atomic.fetch_add(1, Ordering::Relaxed);
+
+                match result {
+                    Ok(info) => local_file_infos.push(FileInfoType::Info(info)),
+                    Err(err) => {
+                        local_file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err)))
+                    }
+                }
+            });
+
+            match result {
+                Ok(_) => {
+                    state_atomic.store(OperationState::Done as u8, Ordering::Relaxed);
+                    *file_infos.lock().unwrap() = local_file_infos;
+                }
+                Err(err) => {
+                    state_atomic.store(OperationState::Err as u8, Ordering::Relaxed);
+                    *error.lock().unwrap() = err.into();
+                }
+            }
+        });
+    }
 }
 
 impl<'a> FocusableWidgetState for FileListState {
@@ -88,12 +125,22 @@ pub enum OperationState {
     Err,
 }
 
-#[derive(Default)]
 pub struct AnalyzePendingState {
     pub count: Arc<AtomicU16>,
     pub state: Arc<AtomicU8>,
-    pub error: Arc<Mutex<Option<Box<anyhow::Error>>>>,
+    pub error: Arc<Mutex<Box<anyhow::Error>>>,
     pub file_infos: Arc<Mutex<Vec<FileInfoType>>>,
+}
+
+impl Default for AnalyzePendingState {
+    fn default() -> Self {
+        AnalyzePendingState {
+            count: Arc::default(),
+            state: Arc::default(),
+            error: Arc::new(Mutex::new(Box::new(anyhow::anyhow!("")))),
+            file_infos: Arc::default(),
+        }
+    }
 }
 
 impl AnalyzePendingState {
@@ -217,11 +264,7 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     analyze_state = Some(AnalyzeState::Pending(pending_state));
                 }
                 OperationState::Err => {
-                    let error = Arc::try_unwrap(pending_state.error)
-                        .unwrap()
-                        .into_inner()
-                        .unwrap()
-                        .unwrap();
+                    let error = Arc::try_unwrap(pending_state.error).unwrap().into_inner().unwrap();
                     analyze_state = Some(AnalyzeState::Err(error));
                 }
             }

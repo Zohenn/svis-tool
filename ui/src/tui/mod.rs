@@ -76,6 +76,15 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
         .path_state
         .path_input
         .with_value(initial_path.unwrap_or("./test_files/work").into());
+
+    match initial_path {
+        Some(path) => {
+            app.file_list_state.analyze_path(path.into());
+            app.focused_widget = Some(FocusableWidget::FileList);
+        }
+        _ => {}
+    }
+
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 

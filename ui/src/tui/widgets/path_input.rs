@@ -42,38 +42,8 @@ impl FocusableWidgetState for PathState {
 
     fn callback(app: &mut App) -> HandleEventResult {
         let path = app.path_state.path_input.value().to_owned();
-        let pending_state = AnalyzePendingState::default();
-        let files_checked_atomic = pending_state.count.clone();
-        let file_infos = pending_state.file_infos.clone();
-        let state_atomic = pending_state.state.clone();
-        let error = pending_state.error.clone();
-        app.file_list_state.analyze_state = Some(AnalyzeState::Pending(pending_state));
 
-        thread::spawn(move || {
-            let mut local_file_infos = vec![];
-
-            let result = analyze_path(&path, |file, result| {
-                files_checked_atomic.fetch_add(1, Ordering::Relaxed);
-
-                match result {
-                    Ok(info) => local_file_infos.push(FileInfoType::Info(info)),
-                    Err(err) => {
-                        local_file_infos.push(FileInfoType::Err(SourceMappingErrorInfo::new(file.to_owned(), err)))
-                    }
-                }
-            });
-
-            match result {
-                Ok(_) => {
-                    state_atomic.store(OperationState::Done as u8, Ordering::Relaxed);
-                    *file_infos.lock().unwrap() = local_file_infos;
-                }
-                Err(err) => {
-                    state_atomic.store(OperationState::Err as u8, Ordering::Relaxed);
-                    *error.lock().unwrap() = Some(err.into());
-                }
-            }
-        });
+        app.file_list_state.analyze_path(path);
 
         HandleEventResult::ChangeFocus(FocusableWidget::FileList)
     }

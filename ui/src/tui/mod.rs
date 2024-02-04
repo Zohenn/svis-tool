@@ -19,8 +19,8 @@ use ratatui::{
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
     widgets::file_list::{render_file_list, AnalyzeState, FileListState},
-    widgets::mapping_info::FileInfoState,
     widgets::path_input::{render_path_input, PathState},
+    widgets::{fps::FpsWidget, mapping_info::FileInfoState},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -35,6 +35,7 @@ pub struct App {
     path_state: PathState,
     file_list_state: FileListState,
     file_info_state: FileInfoState,
+    fps: FpsWidget,
 }
 
 impl<'a> Default for App {
@@ -44,6 +45,7 @@ impl<'a> Default for App {
             path_state: PathState::default(),
             file_list_state: FileListState { analyze_state: None },
             file_info_state: FileInfoState::default(),
+            fps: FpsWidget::default(),
         }
     }
 }
@@ -139,6 +141,11 @@ fn ui(f: &mut Frame, app: &mut App) {
     render_path_input(f, app, chunks[1]);
 
     render_file_list(f, app, chunks[2]);
+
+    f.render_widget(
+        &mut app.fps,
+        Layout::horizontal([Constraint::Min(0), Constraint::Length(10)]).areas::<2>(chunks[0])[1],
+    );
 }
 
 fn render_help_message(f: &mut Frame, app: &App, rect: Rect) {

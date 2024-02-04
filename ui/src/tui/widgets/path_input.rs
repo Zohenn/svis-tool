@@ -1,18 +1,13 @@
-use std::{sync::atomic::Ordering, thread};
-
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{prelude::Rect, style::*, text::Line, widgets::Paragraph, Frame};
 use tui_input::{backend::crossterm::EventHandler, Input};
-
-use core::analyze_path;
 
 use crate::keybindings;
 
 use crate::tui::{
     core::{FocusableWidgetState, HandleEventResult},
     widget_utils::{default_block, CustomStyles},
-    widgets::file_list::{AnalyzePendingState, FileInfoType, OperationState, SourceMappingErrorInfo},
-    AnalyzeState, App, FocusableWidget,
+    App, FocusableWidget,
 };
 
 pub struct PathState {

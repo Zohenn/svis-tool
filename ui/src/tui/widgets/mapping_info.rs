@@ -415,7 +415,7 @@ fn calculate_height<'a>(text: &Text, block: Block, area: Rect) -> u16 {
     for y in buffer.area.top()..buffer.area.bottom() {
         let x = buffer.area.left() + 1;
 
-        if buffer.get(x, y).symbol == " " {
+        if buffer.get(x, y).symbol() == " " {
             return y - 1 - area.y;
         }
     }

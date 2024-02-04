@@ -20,7 +20,7 @@ use ratatui::{
 };
 use threadpool::Builder as ThreadPoolBuilder;
 
-use core::{analyze_path, analyzer::SourceMappingInfo, discover_files, handle_file};
+use core::{analyzer::SourceMappingInfo, discover_files, handle_file};
 
 use crate::{keybindings, utils::format_bytes};
 

@@ -152,8 +152,7 @@ fn render_help_message(f: &mut Frame, app: &App, rect: Rect) {
             Style::default(),
         ),
     };
-    let mut text = Text::from(Line::from(msg));
-    text.patch_style(style);
+    let text = Text::from(Line::from(msg)).patch_style(style);
 
     f.render_widget(Paragraph::new(text), rect);
 }

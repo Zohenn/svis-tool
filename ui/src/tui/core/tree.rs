@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::ops::Add;
 
+use compact_str::CompactString;
 use ratatui::prelude::*;
 use ratatui::widgets::ListItem;
 
@@ -23,7 +24,7 @@ enum TreeItemType {
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Debug, Clone)]
 struct TreeNodeChildKey {
-    key: String,
+    key: CompactString,
     r#type: TreeItemType,
 }
 
@@ -41,7 +42,7 @@ impl Ord for TreeNodeChildKey {
 
 #[derive(Debug)]
 pub struct TreeNode<D: Debug> {
-    key: String,
+    key: CompactString,
     path: String,
     children: BTreeMap<TreeNodeChildKey, TreeItem<D>>,
 }
@@ -66,7 +67,7 @@ impl Add for NoAggregation {
 impl<D: Debug> Tree<D, NoAggregation> {
     pub fn from(items: Vec<D>, get_path: impl Fn(&D) -> &str) -> Self {
         let mut root_node: TreeNode<D> = TreeNode {
-            key: String::new(),
+            key: CompactString::new(""),
             path: String::new(),
             children: BTreeMap::new(),
         };
@@ -74,8 +75,8 @@ impl<D: Debug> Tree<D, NoAggregation> {
         for item in items {
             let mut path_parts = get_path(&item)
                 .split('/')
-                .map(|part| part.to_owned())
-                .collect::<Vec<String>>();
+                .map(|part| part.into())
+                .collect::<Vec<CompactString>>();
 
             let leaf = path_parts.pop().unwrap();
             let mut node = &mut root_node;
@@ -83,18 +84,18 @@ impl<D: Debug> Tree<D, NoAggregation> {
             if path_parts.len() > 0 {
                 for part in path_parts.into_iter() {
                     let map_key = TreeNodeChildKey {
-                        key: part,
+                        key: part.into(),
                         r#type: TreeItemType::Node,
                     };
 
                     let new_node_entry = node.children.entry(map_key.clone()).or_insert_with(|| {
                         let path = if node.path.is_empty() {
-                            map_key.key.clone()
+                            map_key.key.clone().to_string()
                         } else {
                             node.path.clone() + "/" + &map_key.key
                         };
                         TreeItem::Node(TreeNode {
-                            key: map_key.key.clone(),
+                            key: map_key.key.clone().into(),
                             path,
                             children: BTreeMap::new(),
                         })

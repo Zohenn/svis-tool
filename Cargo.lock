@@ -585,6 +585,7 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
+ "compact_str",
  "console",
  "core",
  "crossterm",

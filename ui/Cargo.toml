@@ -11,4 +11,5 @@ ratatui = "0.26.0"
 tui-input = "0.8.0"
 clap = "4.4.13"
 threadpool = "1.8.1"
+compact_str = "0.7.1"
 core = { path = "../core" }

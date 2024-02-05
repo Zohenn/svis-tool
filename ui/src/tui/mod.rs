@@ -5,7 +5,7 @@ mod widgets;
 use std::time::Duration;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
@@ -93,35 +93,39 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
         // event::read is blocking, event::poll is not
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                let previously_focused_widget = app.focused_widget;
+                if key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('f')) {
+                    app.fps.toggle();
+                } else {
+                    let previously_focused_widget = app.focused_widget;
 
-                match app.focused_widget_state() {
-                    Some(widget_state) => {
-                        let result = widget_state.handle_events(key);
-                        app.handle_event_result(result);
+                    match app.focused_widget_state() {
+                        Some(widget_state) => {
+                            let result = widget_state.handle_events(key);
+                            app.handle_event_result(result);
 
-                        if app.focused_widget.is_some() && previously_focused_widget != app.focused_widget {
-                            app.focused_widget_state().unwrap().on_focus();
+                            if app.focused_widget.is_some() && previously_focused_widget != app.focused_widget {
+                                app.focused_widget_state().unwrap().on_focus();
+                            }
                         }
+                        None => match key.code {
+                            KeyCode::Char('p') => {
+                                app.focused_widget = Some(FocusableWidget::PathInput);
+                            }
+                            KeyCode::Char('f') => {
+                                app.focused_widget = Some(FocusableWidget::FileList);
+                                match &mut app.file_list_state.analyze_state {
+                                    Some(AnalyzeState::Done(state)) => {
+                                        state.file_infos.next();
+                                    }
+                                    _ => {}
+                                };
+                            }
+                            KeyCode::Char('q') => {
+                                return Ok(());
+                            }
+                            _ => {}
+                        },
                     }
-                    None => match key.code {
-                        KeyCode::Char('p') => {
-                            app.focused_widget = Some(FocusableWidget::PathInput);
-                        }
-                        KeyCode::Char('f') => {
-                            app.focused_widget = Some(FocusableWidget::FileList);
-                            match &mut app.file_list_state.analyze_state {
-                                Some(AnalyzeState::Done(state)) => {
-                                    state.file_infos.next();
-                                }
-                                _ => {}
-                            };
-                        }
-                        KeyCode::Char('q') => {
-                            return Ok(());
-                        }
-                        _ => {}
-                    },
                 }
             }
         }

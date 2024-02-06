@@ -219,30 +219,57 @@ impl SourceMapping {
         self.sources.is_empty() && self.mappings.is_empty()
     }
 
-    pub fn get_sources_root(&self) -> String {
+    pub fn sources_root(&self) -> &str {
         match self.source_root() {
-            Some(path) if !path.is_empty() => return path.to_owned(),
+            Some(path) if !path.is_empty() => return path,
             _ => {}
         }
 
-        // This looks like crap
-        let relative_jumps = self
-            .sources()
-            .first()
-            .unwrap()
-            .split('/')
-            .take_while(|part| part == &"..")
-            .count();
+        resolve_relative_path(self.sources().first().unwrap(), self.file())
+    }
+}
 
-        // TODO: This looks like crap even more
-        self.file()
-            .split('/')
-            .rev()
-            .skip((relative_jumps + 1) as usize)
-            .collect::<Vec<&str>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<&str>>()
-            .join("/")
+fn resolve_relative_path<'a>(relative_path: &'a str, relative_to: &'a str) -> &'a str {
+    const PREFIX_LENGTH: usize = "../".len();
+    // Finds the position of a first character after ../
+    let relative_jumps = relative_path.chars().position(|c| c != '.' && c != '/').unwrap() / PREFIX_LENGTH;
+
+    let mut skipped_parts = 0;
+    for (index, c) in relative_to.chars().rev().enumerate() {
+        if c == '/' {
+            skipped_parts += 1;
+        }
+
+        if skipped_parts == relative_jumps + 1 {
+            return relative_to.get(0..(relative_to.len() - index - 1)).unwrap();
+        }
+    }
+
+    unreachable!();
+}
+
+#[cfg(any(test, rust_analyzer))]
+mod test {
+    use crate::parser::resolve_relative_path;
+
+    #[test]
+    fn works_for_example_paths() {
+        let test_paths = [
+            (
+                "../../../node_modules/quasar/src/composables/private/use-tick.js",
+                "./test_files/quasar-admin/dist/spa/assets/use-timeout.cdce10a0.js",
+            ),
+            (
+                "../../../src/components/paginations/BasicFilter.vue",
+                "./test_files/quasar-admin/dist/spa/assets/BasicFilter.09ac81e1.js",
+            ),
+        ];
+
+        for (relative_path, relative_to) in test_paths {
+            assert_eq!(
+                resolve_relative_path(relative_path, relative_to),
+                "./test_files/quasar-admin"
+            );
+        }
     }
 }

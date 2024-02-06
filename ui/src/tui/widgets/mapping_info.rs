@@ -72,6 +72,7 @@ fn render_tree_info(
     let source_file_len = mapping.source_file_without_source_map_len();
     let aggregator_source_file_len = source_file_len;
 
+    // TODO: try not to create the tree from scratch on every render
     let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
         without_relative_part(info.get_file_name(item.file))
     })
@@ -137,7 +138,7 @@ fn render_paragraph_info(
                 vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()]
                     .into()
             } else {
-                let sources_root = mapping.get_sources_root();
+                let sources_root = mapping.sources_root();
 
                 let source_file_len = mapping.source_file_without_source_map_len();
 
@@ -283,6 +284,7 @@ impl FileInfoState {
 impl Default for FileInfoState {
     fn default() -> Self {
         let tree_state = TreeState {
+            // TODO: allow for tree to automatically expand to a given depth on creation
             expanded: HashSet::from(["src".into(), "node_modules".into()]),
         };
 
@@ -333,6 +335,7 @@ impl FileInfoState {
     fn handle_tree_events(&mut self, event: KeyEvent) {
         match event.code {
             KeyCode::Down | KeyCode::Char('j') => {
+                // TODO: this is mostly the same as StatefulList
                 let i = match self.list_state.selected() {
                     Some(i) => {
                         if i >= self.list_len - 1 {
@@ -346,6 +349,7 @@ impl FileInfoState {
                 self.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') => {
+                // TODO: this is mostly the same as StatefulList
                 let i = match self.list_state.selected() {
                     Some(i) => {
                         if i == 0 {

@@ -33,7 +33,7 @@ pub fn print_file_info(info: &SourceMappingInfo) {
         return;
     }
 
-    let sources_root = mapping.get_sources_root();
+    let sources_root = mapping.sources_root();
 
     let source_file_len = mapping.source_file_without_source_map_len();
 

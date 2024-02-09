@@ -19,8 +19,11 @@ use ratatui::{
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
     widgets::file_list::{render_file_list, AnalyzeState, FileListState},
-    widgets::path_input::{render_path_input, PathState},
-    widgets::{fps::FpsWidget, mapping_info::FileInfoState},
+    widgets::{dialog::Dialog, fps::FpsWidget, mapping_info::FileInfoState},
+    widgets::{
+        path_input::{render_path_input, PathState},
+        search_dialog::SearchDialogState,
+    },
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -28,6 +31,7 @@ pub enum FocusableWidget {
     PathInput,
     FileList,
     FileInfo,
+    SearchDialog,
 }
 
 pub struct App {
@@ -36,6 +40,7 @@ pub struct App {
     file_list_state: FileListState,
     file_info_state: FileInfoState,
     fps: FpsWidget,
+    search_dialog: Dialog<SearchDialogState>,
 }
 
 impl<'a> Default for App {
@@ -46,6 +51,7 @@ impl<'a> Default for App {
             file_list_state: FileListState { analyze_state: None },
             file_info_state: FileInfoState::default(),
             fps: FpsWidget::default(),
+            search_dialog: Dialog::default(),
         }
     }
 }
@@ -56,6 +62,7 @@ impl App {
             Some(FocusableWidget::PathInput) => Some(&mut self.path_state),
             Some(FocusableWidget::FileList) => Some(&mut self.file_list_state),
             Some(FocusableWidget::FileInfo) => Some(&mut self.file_info_state),
+            Some(FocusableWidget::SearchDialog) => Some(&mut self.search_dialog),
             None => None,
         }
     }
@@ -150,6 +157,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         &mut app.fps,
         Layout::horizontal([Constraint::Min(0), Constraint::Length(10)]).areas::<2>(chunks[0])[1],
     );
+
+    app.search_dialog.render_dialog(f, f.size());
 }
 
 fn render_help_message(f: &mut Frame, app: &App, rect: Rect) {

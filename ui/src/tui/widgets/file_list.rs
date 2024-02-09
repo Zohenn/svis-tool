@@ -115,6 +115,12 @@ impl<'a> FocusableWidgetState for FileListState {
                 KeyCode::Char('n') => {
                     state.sort(FileInfoSort::Name);
                 }
+                KeyCode::Char('f') => {
+                    return HandleEventResult::Callback(|app| {
+                        app.search_dialog.open = true;
+                        HandleEventResult::ChangeFocus(FocusableWidget::SearchDialog)
+                    });
+                }
                 KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
                 _ => {}
             },

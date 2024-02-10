@@ -189,6 +189,10 @@ impl AnalyzeDoneState {
             SortOrder::Asc
         };
 
+        self.sort_with_order(sort, sort_order)
+    }
+
+    pub fn sort_with_order(&mut self, sort: FileInfoSort, sort_order: SortOrder) {
         self.sort = sort;
         self.sort_order = sort_order;
 
@@ -247,7 +251,7 @@ impl SourceMappingErrorInfo {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FileInfoSort {
     Size,
     Name,
@@ -269,6 +273,7 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
                     let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
                     done_state.file_infos.next();
+                    done_state.sort_with_order(done_state.sort, done_state.sort_order);
                     analyze_state = Some(AnalyzeState::Done(done_state));
                 }
                 OperationState::Pending => {
@@ -337,7 +342,9 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     "↑↓ jk"" select ";
                     "|".dark_gray().into(),
                     " sort: ".white().into();,
-                    "s""ize, ", "n""ame"
+                    "s""ize, ", "n""ame ";
+                    "| ".dark_gray().into();,
+                    "f""ind source file"
                 );
 
                 block = block

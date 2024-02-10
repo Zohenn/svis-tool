@@ -43,6 +43,11 @@ impl<T> StatefulList<T> {
         self.state.select(Some(i));
     }
 
+    pub fn select(&mut self, index: usize) {
+        assert!(index < self.items.len());
+        self.state.select(Some(index));
+    }
+
     pub fn unselect(&mut self) {
         self.state.select(None);
     }

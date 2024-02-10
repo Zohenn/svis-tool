@@ -8,4 +8,5 @@ const fn convert(color: Colour) -> Color {
 const DEFAULT_FLAVOR: Flavour = Flavour::Mocha;
 const DEFAULT_COLORS: FlavourColours = DEFAULT_FLAVOR.colours();
 
+pub const TEXT: Color = convert(DEFAULT_COLORS.text);
 pub const BACKGROUND: Color = convert(DEFAULT_COLORS.base);

@@ -26,6 +26,10 @@ impl InputWidgetState {
     pub fn value(&self) -> &str {
         self.input.value()
     }
+
+    pub fn reset(&mut self) {
+        self.input.reset();
+    }
 }
 
 impl FocusableWidgetState for InputWidgetState {

@@ -33,7 +33,7 @@ macro_rules! keybindings {
             " ".into(),
             $(
                 $key.key().into(),
-                $rest.white().into(),
+                $rest.fg($crate::theme::TEXT).into(),
                 $(
                     $(
                         $sep,

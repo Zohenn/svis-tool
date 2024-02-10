@@ -12,4 +12,5 @@ tui-input = "0.8.0"
 clap = "4.4.13"
 threadpool = "1.8.1"
 compact_str = "0.7.1"
+catppuccin = "1.4.0"
 core = { path = "../core" }

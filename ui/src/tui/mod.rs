@@ -16,10 +16,12 @@ use ratatui::{
     Frame, Terminal,
 };
 
+use crate::theme;
+
 use self::{
     core::{FocusableWidgetState, HandleEventResult},
     widgets::file_list::{render_file_list, AnalyzeState, FileListState},
-    widgets::{dialog::Dialog, fps::FpsWidget, mapping_info::FileInfoState},
+    widgets::{dialog::DialogContent, fps::FpsWidget, mapping_info::FileInfoState},
     widgets::{
         path_input::{render_path_input, PathState},
         search_dialog::SearchDialogState,
@@ -40,7 +42,7 @@ pub struct App {
     file_list_state: FileListState,
     file_info_state: FileInfoState,
     fps: FpsWidget,
-    search_dialog: Dialog<SearchDialogState>,
+    search_dialog: SearchDialogState,
 }
 
 impl<'a> Default for App {
@@ -51,7 +53,7 @@ impl<'a> Default for App {
             file_list_state: FileListState { analyze_state: None },
             file_info_state: FileInfoState::default(),
             fps: FpsWidget::default(),
-            search_dialog: Dialog::default(),
+            search_dialog: SearchDialogState::default(),
         }
     }
 }
@@ -140,7 +142,7 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    f.render_widget(Block::new().style(Style::default().on_black()), f.size());
+    f.render_widget(Block::new().bg(theme::BACKGROUND), f.size());
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -158,7 +160,11 @@ fn ui(f: &mut Frame, app: &mut App) {
         Layout::horizontal([Constraint::Min(0), Constraint::Length(10)]).areas::<2>(chunks[0])[1],
     );
 
-    app.search_dialog.render_dialog(f, f.size());
+    app.search_dialog.render_dialog(
+        f,
+        f.size(),
+        matches!(app.focused_widget, Some(FocusableWidget::SearchDialog)),
+    );
 }
 
 fn render_help_message(f: &mut Frame, app: &App, rect: Rect) {

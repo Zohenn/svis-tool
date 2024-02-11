@@ -97,23 +97,19 @@ impl<'a> FocusableWidgetState for FileListState {
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
                     state.file_infos.next();
-                    return HandleEventResult::Callback(|app| {
-                        app.file_info_state = FileInfoState::default();
-                        HandleEventResult::KeepFocus
-                    });
+                    return HandleEventResult::Callback(Self::callback);
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     state.file_infos.previous();
-                    return HandleEventResult::Callback(|app| {
-                        app.file_info_state = FileInfoState::default();
-                        HandleEventResult::KeepFocus
-                    });
+                    return HandleEventResult::Callback(Self::callback);
                 }
                 KeyCode::Char('s') => {
                     state.sort(FileInfoSort::Size);
+                    return HandleEventResult::Callback(Self::callback);
                 }
                 KeyCode::Char('n') => {
                     state.sort(FileInfoSort::Name);
+                    return HandleEventResult::Callback(Self::callback);
                 }
                 KeyCode::Char('f') => return HandleEventResult::ChangeFocus(FocusableWidget::SearchDialog),
                 KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
@@ -127,6 +123,11 @@ impl<'a> FocusableWidgetState for FileListState {
         } else {
             HandleEventResult::KeepFocus
         }
+    }
+
+    fn callback(app: &mut App) -> HandleEventResult {
+        app.file_info_state = FileInfoState::default();
+        HandleEventResult::KeepFocus
     }
 }
 

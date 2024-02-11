@@ -92,7 +92,7 @@ fn render_tree_info(
         },
     );
 
-    let (paths, list_items) = tree.as_list_items(&file_info_state.tree_state, |file_info| {
+    let (paths, list_items) = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
         vec![
             without_relative_part(info.get_file_name(file_info.file))
                 .split('/')
@@ -283,10 +283,7 @@ impl FileInfoState {
 
 impl Default for FileInfoState {
     fn default() -> Self {
-        let tree_state = TreeState {
-            // TODO: allow for tree to automatically expand to a given depth on creation
-            expanded: HashSet::from(["src".into(), "node_modules".into()]),
-        };
+        let tree_state = TreeState::default().initial_expand_depth(2);
 
         Self {
             scroll: 0,

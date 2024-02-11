@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Flex, Rect},
     prelude::*,
     style::{Color, Style},
-    widgets::{block::Title, Block},
+    widgets::Block,
 };
 
 use crate::theme;
@@ -18,10 +18,6 @@ pub trait DialogContent {
         Constraint::Percentage(80)
     }
 
-    fn title(&self) -> impl Into<Title> {
-        ""
-    }
-
     fn modify_block<'block>(&self, block: Block<'block>) -> Block<'block> {
         block
     }
@@ -33,6 +29,7 @@ pub trait DialogContent {
 
         let buffer = f.buffer_mut();
 
+        // Imitate backdrop
         buffer.set_style(*buffer.area(), Style::default().fg(Color::DarkGray));
 
         let vertical_chunk = Layout::vertical([self.vertical_constraints(area)])
@@ -43,21 +40,14 @@ pub trait DialogContent {
             .flex(Flex::Center)
             .split(vertical_chunk)[0];
 
+        // Clear dialog area
         for x in area.left()..area.right() {
             for y in area.top()..area.bottom() {
                 buffer.get_mut(x, y).reset();
             }
         }
 
-        let mut block = Block::default().fg(Color::White).bg(theme::BACKGROUND);
-
-        let title: Title = self.title().into();
-
-        if title.content.width() > 0 {
-            block = block.title(title);
-        }
-
-        block = self.modify_block(block);
+        let block = self.modify_block(Block::default().fg(Color::White).bg(theme::BACKGROUND));
 
         let block_area = block.inner(area);
 

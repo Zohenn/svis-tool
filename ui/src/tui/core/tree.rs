@@ -6,8 +6,26 @@ use compact_str::CompactString;
 use ratatui::prelude::*;
 use ratatui::widgets::ListItem;
 
+#[derive(Default)]
 pub struct TreeState {
     pub expanded: HashSet<String>,
+    rendered: bool,
+    initial_expand_depth: u8,
+}
+
+impl TreeState {
+    pub fn initial_expand_depth(mut self, depth: u8) -> Self {
+        self.initial_expand_depth = depth;
+        self
+    }
+
+    pub fn with_expanded(expanded: HashSet<String>) -> Self {
+        Self {
+            expanded,
+            rendered: false,
+            initial_expand_depth: 0,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -140,7 +158,7 @@ impl<D: Debug> Tree<D, NoAggregation> {
 impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
     pub fn as_list_items(
         &self,
-        state: &TreeState,
+        state: &mut TreeState,
         data_mapper: impl Fn(&D) -> Vec<Span>,
     ) -> (Vec<String>, Vec<ListItem>) {
         let mut paths = vec![];
@@ -157,6 +175,10 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
             let padding = " ".repeat((depth as usize) * 2);
             match tree_item {
                 TreeItem::Node(child_node) => {
+                    if !state.rendered && depth < state.initial_expand_depth {
+                        state.expanded.insert(child_node.path.clone());
+                    }
+
                     let is_expanded = state.expanded.contains(&child_node.path);
                     let icon = if is_expanded { "▼ " } else { "► " };
 
@@ -188,6 +210,8 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
                 }
             }
         }
+
+        state.rendered = true;
 
         (paths, items)
     }

@@ -10,12 +10,12 @@ use ratatui::widgets::ListItem;
 pub struct TreeState {
     pub expanded: HashSet<String>,
     rendered: bool,
-    initial_expand_depth: u8,
+    initial_expansion_depth: u8,
 }
 
 impl TreeState {
-    pub fn initial_expand_depth(mut self, depth: u8) -> Self {
-        self.initial_expand_depth = depth;
+    pub fn initial_expansion_depth(mut self, depth: u8) -> Self {
+        self.initial_expansion_depth = depth;
         self
     }
 
@@ -23,7 +23,16 @@ impl TreeState {
         Self {
             expanded,
             rendered: false,
-            initial_expand_depth: 0,
+            initial_expansion_depth: 0,
+        }
+    }
+
+    pub fn ensure_leaf_is_visible(&mut self, leaf: &str) {
+        let parts = leaf.split('/').collect::<Vec<_>>();
+
+        for index in 0..parts.len() {
+            let current_path_parts = parts.get(0..=index).unwrap();
+            self.expanded.insert(current_path_parts.join("/"));
         }
     }
 }
@@ -175,7 +184,7 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
             let padding = " ".repeat((depth as usize) * 2);
             match tree_item {
                 TreeItem::Node(child_node) => {
-                    if !state.rendered && depth < state.initial_expand_depth {
+                    if !state.rendered && depth < state.initial_expansion_depth {
                         state.expanded.insert(child_node.path.clone());
                     }
 

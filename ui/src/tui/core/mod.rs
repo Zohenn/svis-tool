@@ -10,7 +10,7 @@ pub enum HandleEventResult {
     Blur,
     KeepFocus,
     ChangeFocus(FocusableWidget),
-    Callback(fn(&mut App) -> HandleEventResult),
+    Callback(Box<dyn Fn(&mut App) -> HandleEventResult>),
 }
 
 pub trait FocusableWidgetState {

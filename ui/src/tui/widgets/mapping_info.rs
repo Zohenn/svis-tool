@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use core::analyzer::SourceMappingFileInfo;
-use std::{collections::HashSet, ops::Add};
+use std::ops::Add;
 
 use crate::{
     keybindings,
@@ -283,7 +283,7 @@ impl FileInfoState {
 
 impl Default for FileInfoState {
     fn default() -> Self {
-        let tree_state = TreeState::default().initial_expand_depth(2);
+        let tree_state = TreeState::default().initial_expansion_depth(2);
 
         Self {
             scroll: 0,

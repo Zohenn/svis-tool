@@ -87,12 +87,12 @@ impl FocusableWidgetState for SearchDialogState {
                         let file = without_relative_part(file).to_owned();
                         done_state.file_infos.select(pos);
                         app.search_dialog.path_input.reset();
-                        return HandleEventResult::Callback(Box::new(move |app| {
-                            app.file_info_state = FileInfoState::default();
-                            app.file_info_state.tree_state.ensure_leaf_is_visible(&file);
-                            app.file_info_state.tree_state.initial_highlight(&file);
-                            HandleEventResult::ChangeFocus(FocusableWidget::FileInfo)
-                        }));
+
+                        app.file_info_state = FileInfoState::default();
+                        app.file_info_state.tree_state.ensure_leaf_is_visible(&file);
+                        app.file_info_state.tree_state.initial_highlight(&file);
+
+                        return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo);
                     }
                     _ => {}
                 }

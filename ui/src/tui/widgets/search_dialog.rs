@@ -90,9 +90,9 @@ impl FocusableWidgetState for SearchDialogState {
                         return HandleEventResult::Callback(Box::new(move |app| {
                             app.file_info_state = FileInfoState::default();
                             app.file_info_state.tree_state.ensure_leaf_is_visible(&file);
-                            HandleEventResult::ChangeFocus(FocusableWidget::FileList)
+                            app.file_info_state.tree_state.initial_highlight(&file);
+                            HandleEventResult::ChangeFocus(FocusableWidget::FileInfo)
                         }));
-                        // TODO: select found file in tree view
                     }
                     _ => {}
                 }

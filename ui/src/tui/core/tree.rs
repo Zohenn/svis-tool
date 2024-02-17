@@ -4,13 +4,15 @@ use std::ops::Add;
 
 use compact_str::CompactString;
 use ratatui::prelude::*;
-use ratatui::widgets::ListItem;
+use ratatui::widgets::{ListItem, ListState};
 
 #[derive(Default)]
 pub struct TreeState {
     pub expanded: HashSet<String>,
+    pub list_state: ListState,
     rendered: bool,
     initial_expansion_depth: u8,
+    initial_highlight: Option<String>,
 }
 
 impl TreeState {
@@ -19,11 +21,17 @@ impl TreeState {
         self
     }
 
+    pub fn initial_highlight(&mut self, path: &str) {
+        self.initial_highlight = Some(path.to_owned());
+    }
+
     pub fn with_expanded(expanded: HashSet<String>) -> Self {
         Self {
             expanded,
+            list_state: ListState::default(),
             rendered: false,
             initial_expansion_depth: 0,
+            initial_highlight: None,
         }
     }
 
@@ -40,7 +48,7 @@ impl TreeState {
 #[derive(Debug)]
 pub enum TreeItem<D: Debug> {
     Node(TreeNode<D>),
-    Leaf(D),
+    Leaf(TreeLeaf<D>),
 }
 
 #[derive(Hash, PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
@@ -68,10 +76,30 @@ impl Ord for TreeNodeChildKey {
 }
 
 #[derive(Debug)]
-pub struct TreeNode<D: Debug> {
+pub struct TreeLocation {
     key: CompactString,
     path: String,
+}
+
+impl TreeLocation {
+    pub fn new<K>(key: K, path: String) -> Self
+    where
+        K: Into<CompactString>,
+    {
+        Self { key: key.into(), path }
+    }
+}
+
+#[derive(Debug)]
+pub struct TreeNode<D: Debug> {
+    location: TreeLocation,
     children: BTreeMap<TreeNodeChildKey, TreeItem<D>>,
+}
+
+#[derive(Debug)]
+pub struct TreeLeaf<D: Debug> {
+    location: TreeLocation,
+    data: D,
 }
 
 pub struct Tree<D: Debug, A: Add<Output = A> + Copy> {
@@ -94,16 +122,13 @@ impl Add for NoAggregation {
 impl<D: Debug> Tree<D, NoAggregation> {
     pub fn from(items: Vec<D>, get_path: impl Fn(&D) -> &str) -> Self {
         let mut root_node: TreeNode<D> = TreeNode {
-            key: CompactString::new(""),
-            path: String::new(),
+            location: TreeLocation::new("", String::new()),
             children: BTreeMap::new(),
         };
 
         for item in items {
-            let mut path_parts = get_path(&item)
-                .split('/')
-                .map(|part| part.into())
-                .collect::<Vec<CompactString>>();
+            let path = get_path(&item);
+            let mut path_parts = path.split('/').map(|part| part.into()).collect::<Vec<CompactString>>();
 
             let leaf = path_parts.pop().unwrap();
             let mut node = &mut root_node;
@@ -116,14 +141,13 @@ impl<D: Debug> Tree<D, NoAggregation> {
                     };
 
                     let new_node_entry = node.children.entry(map_key.clone()).or_insert_with(|| {
-                        let path = if node.path.is_empty() {
+                        let path = if node.location.path.is_empty() {
                             map_key.key.clone().to_string()
                         } else {
-                            node.path.clone() + "/" + &map_key.key
+                            node.location.path.clone() + "/" + &map_key.key
                         };
                         TreeItem::Node(TreeNode {
-                            key: map_key.key.clone().into(),
-                            path,
+                            location: TreeLocation::new(map_key.key.clone(), path),
                             children: BTreeMap::new(),
                         })
                     });
@@ -136,10 +160,13 @@ impl<D: Debug> Tree<D, NoAggregation> {
 
             node.children.insert(
                 TreeNodeChildKey {
-                    key: leaf,
+                    key: leaf.clone(),
                     r#type: TreeItemType::Leaf,
                 },
-                TreeItem::Leaf(item),
+                TreeItem::Leaf(TreeLeaf {
+                    location: TreeLocation::new(leaf, path.to_owned()),
+                    data: item,
+                }),
             );
         }
 
@@ -185,17 +212,21 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
             match tree_item {
                 TreeItem::Node(child_node) => {
                     if !state.rendered && depth < state.initial_expansion_depth {
-                        state.expanded.insert(child_node.path.clone());
+                        state.expanded.insert(child_node.location.path.clone());
                     }
 
-                    let is_expanded = state.expanded.contains(&child_node.path);
+                    let is_expanded = state.expanded.contains(&child_node.location.path);
                     let icon = if is_expanded { "▼ " } else { "► " };
 
-                    paths.push(child_node.path.clone());
+                    paths.push(child_node.location.path.clone());
 
-                    let mut line_contents = vec![padding.clone().into(), icon.into(), (&child_node.key).into()];
+                    let mut line_contents =
+                        vec![padding.clone().into(), icon.into(), (&child_node.location.key).into()];
 
-                    match (&self.aggregation_mapper, self.aggregated_data.get(&child_node.path)) {
+                    match (
+                        &self.aggregation_mapper,
+                        self.aggregated_data.get(&child_node.location.path),
+                    ) {
                         (Some(aggregation_mapper), Some(aggregation)) => {
                             line_contents.push(" ".into());
                             line_contents.append(&mut aggregation_mapper(aggregation));
@@ -211,13 +242,24 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
                         }
                     }
                 }
-                TreeItem::Leaf(data) => {
-                    paths.push(String::new());
+                TreeItem::Leaf(leaf) => {
+                    paths.push(leaf.location.path.clone());
                     let mut line_contents = vec![padding.clone().into(), "  ".into()];
-                    line_contents.append(&mut data_mapper(data));
+                    line_contents.append(&mut data_mapper(&leaf.data));
                     items.push(ListItem::new(Line::from(line_contents)));
                 }
             }
+
+            if let Some(path) = &state.initial_highlight {
+                let Some(last_path) = paths.last() else {
+                    continue;
+                };
+
+                if last_path == path {
+                    state.list_state.select(Some(paths.len() - 1));
+                    state.initial_highlight = None;
+                }
+            };
         }
 
         state.rendered = true;
@@ -251,11 +293,11 @@ fn aggregate_inner<D: Debug, A: Add<Output = A> + Copy>(
                 aggregation = aggregation + aggregate_inner(child, aggregator, aggregated_data);
             }
 
-            aggregated_data.insert(node.path.clone(), aggregation);
+            aggregated_data.insert(node.location.path.clone(), aggregation);
             return aggregation;
         }
-        TreeItem::Leaf(data) => {
-            return aggregator(data);
+        TreeItem::Leaf(leaf) => {
+            return aggregator(&leaf.data);
         }
     }
 }

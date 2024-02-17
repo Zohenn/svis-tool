@@ -119,7 +119,7 @@ fn render_tree_info(
             .block(block)
             .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)),
         rect,
-        &mut file_info_state.list_state,
+        &mut file_info_state.tree_state.list_state,
     );
 }
 
@@ -268,7 +268,6 @@ pub struct FileInfoState {
     pub scroll: u16,
     pub text_height: u16,
     pub max_height: u16,
-    pub list_state: ListState,
     pub list_len: usize,
     pub tree_state: TreeState,
     pub paths: Vec<String>,
@@ -289,7 +288,6 @@ impl Default for FileInfoState {
             scroll: 0,
             text_height: 0,
             max_height: 0,
-            list_state: ListState::default(),
             list_len: 0,
             tree_state,
             paths: vec![],
@@ -314,7 +312,7 @@ impl FocusableWidgetState for FileInfoState {
         }
 
         if matches!(event.code, KeyCode::Esc) {
-            self.list_state.select(None);
+            self.tree_state.list_state.select(None);
             HandleEventResult::ChangeFocus(FocusableWidget::FileList)
         } else {
             HandleEventResult::KeepFocus
@@ -323,7 +321,7 @@ impl FocusableWidgetState for FileInfoState {
 
     fn on_focus(&mut self) {
         if matches!(self.view_type, FileInfoViewType::Tree) {
-            self.list_state.select(Some(0));
+            self.tree_state.list_state.select(Some(0));
         }
     }
 }
@@ -333,7 +331,7 @@ impl FileInfoState {
         match event.code {
             KeyCode::Down | KeyCode::Char('j') => {
                 // TODO: this is mostly the same as StatefulList
-                let i = match self.list_state.selected() {
+                let i = match self.tree_state.list_state.selected() {
                     Some(i) => {
                         if i >= self.list_len - 1 {
                             0
@@ -343,11 +341,11 @@ impl FileInfoState {
                     }
                     None => 0,
                 };
-                self.list_state.select(Some(i));
+                self.tree_state.list_state.select(Some(i));
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 // TODO: this is mostly the same as StatefulList
-                let i = match self.list_state.selected() {
+                let i = match self.tree_state.list_state.selected() {
                     Some(i) => {
                         if i == 0 {
                             self.list_len - 1
@@ -357,10 +355,10 @@ impl FileInfoState {
                     }
                     None => 0,
                 };
-                self.list_state.select(Some(i));
+                self.tree_state.list_state.select(Some(i));
             }
             KeyCode::Enter => {
-                let path = &self.paths[self.list_state.selected().unwrap_or(0)];
+                let path = &self.paths[self.tree_state.list_state.selected().unwrap_or(0)];
 
                 if !path.is_empty() {
                     if self.tree_state.expanded.contains(path) {

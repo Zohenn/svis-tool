@@ -209,8 +209,8 @@ impl AnalyzeDoneState {
         match (a, b) {
             (FileInfoType::Info(a), FileInfoType::Info(b)) => a
                 .source_mapping
-                .source_file_without_source_map_len()
-                .cmp(&b.source_mapping.source_file_without_source_map_len()),
+                .actual_source_file_len()
+                .cmp(&b.source_mapping.actual_source_file_len()),
             (FileInfoType::Info(_), FileInfoType::Err(_)) => CmpOrdering::Greater,
             (FileInfoType::Err(_), FileInfoType::Info(_)) => CmpOrdering::Less,
             (FileInfoType::Err(_), FileInfoType::Err(_)) => CmpOrdering::Equal,
@@ -314,8 +314,7 @@ pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
                     let mut content = vec!["./".into(), file_name.into(), " ".into()];
 
                     if let FileInfoType::Info(info) = info {
-                        content
-                            .push(format_bytes(info.source_mapping.source_file_without_source_map_len()).highlight());
+                        content.push(format_bytes(info.source_mapping.actual_source_file_len()).highlight());
                         content.extend(
                             [
                                 " (".into(),

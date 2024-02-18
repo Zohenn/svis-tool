@@ -74,11 +74,11 @@ fn parse_raw_source_mapping(path: &str, line: &str) -> Result<RawSourceMapping> 
 
 #[derive(Debug)]
 pub struct Mapping {
-    gen_line: u32,
-    gen_column: u32,
-    src_file: u32,
-    src_line: u32,
-    src_column: u32,
+    pub gen_line: u32,
+    pub gen_column: u32,
+    pub src_file: u32,
+    pub src_line: u32,
+    pub src_column: u32,
 }
 
 impl Mapping {
@@ -90,26 +90,6 @@ impl Mapping {
             src_line: 0,
             src_column: 0,
         }
-    }
-
-    pub fn gen_line(&self) -> u32 {
-        self.gen_line
-    }
-
-    pub fn gen_column(&self) -> u32 {
-        self.gen_column
-    }
-
-    pub fn src_file(&self) -> u32 {
-        self.src_file
-    }
-
-    pub fn src_line(&self) -> u32 {
-        self.src_line
-    }
-
-    pub fn src_column(&self) -> u32 {
-        self.src_column
     }
 }
 
@@ -123,49 +103,21 @@ pub static EMPTY_MAPPING: Mapping = Mapping::const_default();
 
 #[derive(Debug)]
 pub struct SourceMapping {
-    file: String,
-    source_root: Option<String>,
-    sources: Vec<String>,
-    names: Vec<String>,
-    mappings: Vec<Mapping>,
+    pub file: String,
+    pub source_root: Option<String>,
+    pub sources: Vec<String>,
+    pub names: Vec<String>,
+    pub mappings: Vec<Mapping>,
     // Field not present in source JSON, but read early to split presentation logic from
     // parsing and analyzing logic
-    source_file_len: u64,
+    pub source_file_len: u64,
     // Field not present in source JSON, but needed for presenting meaningful results
-    source_map_len: u64,
+    pub source_map_len: u64,
     pub file_name: String,
 }
 
 impl SourceMapping {
-    pub fn file(&self) -> &str {
-        &self.file
-    }
-
-    pub fn source_root(&self) -> Option<&str> {
-        self.source_root.as_ref().map(|v| v.as_str())
-    }
-
-    pub fn sources(&self) -> &[String] {
-        &self.sources
-    }
-
-    pub fn names(&self) -> &[String] {
-        &self.names
-    }
-
-    pub fn mappings(&self) -> &[Mapping] {
-        &self.mappings
-    }
-
-    pub fn source_file_len(&self) -> u64 {
-        self.source_file_len
-    }
-
-    pub fn source_map_len(&self) -> u64 {
-        self.source_map_len
-    }
-
-    pub fn source_file_without_source_map_len(&self) -> u64 {
+    pub fn actual_source_file_len(&self) -> u64 {
         self.source_file_len - self.source_map_len
     }
 
@@ -220,12 +172,12 @@ impl SourceMapping {
     }
 
     pub fn sources_root(&self) -> &str {
-        match self.source_root() {
+        match &self.source_root {
             Some(path) if !path.is_empty() => return path,
             _ => {}
         }
 
-        resolve_relative_path(self.sources().first().unwrap(), self.file())
+        resolve_relative_path(self.sources.first().unwrap(), &self.file)
     }
 }
 

@@ -28,18 +28,18 @@ pub fn print_file_info(info: &SourceMappingInfo) {
     if mapping.is_empty() {
         println!(
             "File {} contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty)",
-            styles.file.apply_to(mapping.file())
+            styles.file.apply_to(&mapping.file)
         );
         return;
     }
 
     let sources_root = mapping.sources_root();
 
-    let source_file_len = mapping.source_file_without_source_map_len();
+    let source_file_len = mapping.actual_source_file_len();
 
     println!(
         "File {}, total size {}.",
-        styles.file.apply_to(mapping.file()),
+        styles.file.apply_to(&mapping.file),
         styles.highlight.apply_to(format_bytes(source_file_len))
     );
     println!(

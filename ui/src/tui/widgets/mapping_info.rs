@@ -69,7 +69,7 @@ fn render_tree_info(
     let FileInfoType::Info(info) = info else { unreachable!() };
 
     let mapping = &info.source_mapping;
-    let source_file_len = mapping.source_file_without_source_map_len();
+    let source_file_len = mapping.actual_source_file_len();
     let aggregator_source_file_len = source_file_len;
 
     // TODO: try not to create the tree from scratch on every render
@@ -140,7 +140,7 @@ fn render_paragraph_info(
             } else {
                 let sources_root = mapping.sources_root();
 
-                let source_file_len = mapping.source_file_without_source_map_len();
+                let source_file_len = mapping.actual_source_file_len();
 
                 let mut lines = vec![
                     Line::from(vec![

@@ -71,7 +71,7 @@ impl FocusableWidgetState for SearchDialogState {
 
                     let file = info
                         .source_mapping
-                        .sources()
+                        .sources
                         .iter()
                         .find(|source| source.to_lowercase().contains(&search_value));
 

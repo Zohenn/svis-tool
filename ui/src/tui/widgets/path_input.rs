@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{prelude::Rect, style::*, text::Line, Frame};
+use ratatui::layout::Rect;
+use ratatui::{style::*, text::Line};
 
 use crate::keybindings;
 
@@ -39,9 +40,11 @@ impl FocusableWidgetState for PathState {
 pub struct PathInputWidget;
 
 impl CustomWidget for PathInputWidget {
-    type Data = ();
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        Some(FocusableWidget::PathInput)
+    }
 
-    fn render<'widget, 'app: 'widget>(self, mut context: RenderContext<'app, '_, Self::Data>, rect: Rect) {
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
         let label = Line::from(keybindings!("p""ath"));
 
         let input = InputWidget::new(context.is_focused()).label(label);
@@ -50,14 +53,4 @@ impl CustomWidget for PathInputWidget {
 
         InputWidget::frame_render(frame, input, rect, &mut app.path_state.path_input);
     }
-}
-
-pub fn render_path_input(f: &mut Frame, app: &mut App, rect: Rect) {
-    let is_focused = matches!(app.focused_widget, Some(FocusableWidget::PathInput));
-
-    let label = Line::from(keybindings!("p""ath"));
-
-    let input = InputWidget::new(is_focused).label(label);
-
-    InputWidget::frame_render(f, input, rect, &mut app.path_state.path_input);
 }

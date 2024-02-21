@@ -2,38 +2,29 @@ use ratatui::{layout::Rect, Frame};
 
 use crate::tui::{App, FocusableWidget};
 
-pub struct RenderContext<'app, 'frame: 'app, D> {
+pub struct RenderContext<'app, 'frame: 'app> {
     app: &'app mut App,
     frame: &'app mut Frame<'frame>,
-    rendered_widget: FocusableWidget,
-    data: D,
+    rendered_widget: Option<FocusableWidget>,
 }
 
-impl<'app, 'frame> RenderContext<'app, 'frame, ()> {
+impl<'context, 'app: 'context, 'frame: 'app> RenderContext<'app, 'frame> {
     pub fn new(
         app: &'app mut App,
         frame: &'app mut Frame<'frame>,
-        rendered_widget: FocusableWidget,
-    ) -> RenderContext<'app, 'frame, ()> {
+        rendered_widget: Option<FocusableWidget>,
+    ) -> RenderContext<'app, 'frame> {
         Self {
             app,
             frame,
             rendered_widget,
-            data: (),
         }
     }
 
-    pub fn with_data<D>(self, data: D) -> RenderContext<'app, 'frame, D> {
-        RenderContext {
-            app: self.app,
-            frame: self.frame,
-            rendered_widget: self.rendered_widget,
-            data,
-        }
+    pub fn app(&self) -> &App {
+        self.app
     }
-}
 
-impl<'context, 'app: 'context, 'frame: 'app, D> RenderContext<'app, 'frame, D> {
     pub fn app_mut(&mut self) -> &mut App {
         self.app
     }
@@ -46,21 +37,21 @@ impl<'context, 'app: 'context, 'frame: 'app, D> RenderContext<'app, 'frame, D> {
         (self.app, self.frame)
     }
 
-    pub fn rendered_widget(&self) -> FocusableWidget {
+    pub fn rendered_widget(&self) -> Option<FocusableWidget> {
         self.rendered_widget
     }
 
-    pub fn data(&self) -> &D {
-        &self.data
+    pub fn is_focused(&self) -> bool {
+        self.app.focused_widget == self.rendered_widget
     }
 
-    pub fn is_focused(&self) -> bool {
-        self.app.focused_widget == Some(self.rendered_widget)
-    }
+    // pub fn render(&mut self, render_callback: impl FnOnce(&mut Frame, &mut App, Rect)) {
+    //     render_callback(self.frame, self.app, self.rect)
+    // }
 }
 
 pub trait CustomWidget {
-    type Data;
+    fn bound_state(&self) -> Option<FocusableWidget>;
 
-    fn render<'widget, 'app: 'widget>(self, context: RenderContext<'app, '_, Self::Data>, rect: Rect);
+    fn render<'widget, 'app: 'widget>(&self, context: RenderContext<'app, '_>, rect: Rect);
 }

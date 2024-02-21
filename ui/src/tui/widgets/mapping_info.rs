@@ -16,6 +16,7 @@ use std::ops::Add;
 
 use crate::{
     keybindings,
+    tui::core::custom_widget::{CustomWidget, RenderContext},
     utils::{format_bytes, format_percentage, without_relative_part},
 };
 
@@ -29,18 +30,27 @@ use crate::tui::{
     FocusableWidget,
 };
 
-pub fn render_mapping_info(
-    f: &mut Frame,
-    file_info_state: &mut FileInfoState,
-    info: &FileInfoType,
-    is_focused: bool,
-    rect: Rect,
-) {
-    match file_info_state.view_type {
-        FileInfoViewType::Tree if matches!(info, FileInfoType::Info(info) if !info.source_mapping.is_empty()) => {
-            render_tree_info(f, file_info_state, info, is_focused, rect)
+pub struct MappingInfoWidget<'info> {
+    pub info: &'info FileInfoType,
+}
+
+impl CustomWidget for MappingInfoWidget<'_> {
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        Some(FocusableWidget::FileInfo)
+    }
+
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
+        let file_info_state = &mut context.app_mut().file_info_state;
+
+        match file_info_state.view_type {
+            FileInfoViewType::Tree if matches!(self.info, FileInfoType::Info(info) if !info.source_mapping.is_empty()) =>
+            {
+                TreeInfoWidget { info: self.info }.render(context, rect);
+            }
+            _ => {
+                ParagraphInfoWidget { info: self.info }.render(context, rect);
+            }
         }
-        _ => render_paragraph_info(f, file_info_state, info, is_focused, rect),
     }
 }
 
@@ -59,193 +69,211 @@ impl Add for TreeAggregation {
     }
 }
 
-fn render_tree_info(
-    f: &mut Frame,
-    file_info_state: &mut FileInfoState,
-    info: &FileInfoType,
-    is_focused: bool,
-    rect: Rect,
-) {
-    let FileInfoType::Info(info) = info else { unreachable!() };
-
-    let mapping = &info.source_mapping;
-    let source_file_len = mapping.actual_source_file_len();
-    let aggregator_source_file_len = source_file_len;
-
-    // TODO: try not to create the tree from scratch on every render
-    let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
-        without_relative_part(info.get_file_name(item.file))
-    })
-    .with_aggregator(
-        |info| TreeAggregation {
-            bytes: info.bytes as u64,
-        },
-        move |aggregation| {
-            vec![
-                format_bytes(aggregation.bytes).highlight().into(),
-                " (".into(),
-                format_percentage(aggregation.bytes, aggregator_source_file_len)
-                    .highlight2()
-                    .into(),
-                ") ".into(),
-            ]
-        },
-    );
-
-    let (paths, list_items) = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
-        vec![
-            without_relative_part(info.get_file_name(file_info.file))
-                .split('/')
-                .last()
-                .unwrap()
-                .into(),
-            " ".into(),
-            format_bytes(file_info.bytes as u64).highlight().into(),
-            " (".into(),
-            format_percentage(file_info.bytes as u64, source_file_len)
-                .highlight2()
-                .into(),
-            ")".into(),
-        ]
-    });
-
-    file_info_state.list_len = list_items.len();
-    file_info_state.paths = paths;
-
-    let block = get_block(is_focused);
-
-    f.render_stateful_widget(
-        List::new(list_items)
-            .block(block)
-            .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)),
-        rect,
-        &mut file_info_state.tree_state.list_state,
-    );
+struct TreeInfoWidget<'info> {
+    info: &'info FileInfoType,
 }
 
-fn render_paragraph_info(
-    f: &mut Frame,
-    file_info_state: &mut FileInfoState,
-    info: &FileInfoType,
-    is_focused: bool,
-    rect: Rect,
-) {
-    let text = match info {
-        FileInfoType::Info(info) => {
-            let mapping = &info.source_mapping;
+impl CustomWidget for TreeInfoWidget<'_> {
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        Some(FocusableWidget::FileInfo)
+    }
 
-            let text: Text = if mapping.is_empty() {
-                vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()]
-                    .into()
-            } else {
-                let sources_root = mapping.sources_root();
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
+        let is_focused = context.is_focused();
+        let (app, frame) = context.app_frame_mut();
+        let file_info_state = &mut app.file_info_state;
 
-                let source_file_len = mapping.actual_source_file_len();
+        let FileInfoType::Info(info) = self.info else {
+            unreachable!()
+        };
 
-                let mut lines = vec![
-                    Line::from(vec![
-                        "File size: ".into(),
-                        format_bytes(source_file_len).highlight().into(),
-                        ".".into(),
-                    ]),
-                    Line::from(vec![
-                        "Number of files: ".into(),
-                        info.info_by_file.len().to_string().highlight(),
-                        ".".into(),
-                    ]),
-                    Line::from(vec![
-                        "Size contribution per file (all paths are relative to ".into(),
-                        sources_root.bold().into(),
-                        "):".into(),
-                    ]),
-                ];
+        let mapping = &info.source_mapping;
+        let source_file_len = mapping.actual_source_file_len();
+        let aggregator_source_file_len = source_file_len;
 
-                let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
-                info_by_file.sort_by_key(|i| i.bytes);
+        // TODO: try not to create the tree from scratch on every render
+        let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
+            without_relative_part(info.get_file_name(item.file))
+        })
+        .with_aggregator(
+            |info| TreeAggregation {
+                bytes: info.bytes as u64,
+            },
+            move |aggregation| {
+                vec![
+                    format_bytes(aggregation.bytes).highlight().into(),
+                    " (".into(),
+                    format_percentage(aggregation.bytes, aggregator_source_file_len)
+                        .highlight2()
+                        .into(),
+                    ") ".into(),
+                ]
+            },
+        );
 
-                for file_info in info_by_file.iter().rev() {
+        let (paths, list_items) = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
+            vec![
+                without_relative_part(info.get_file_name(file_info.file))
+                    .split('/')
+                    .last()
+                    .unwrap()
+                    .into(),
+                " ".into(),
+                format_bytes(file_info.bytes as u64).highlight().into(),
+                " (".into(),
+                format_percentage(file_info.bytes as u64, source_file_len)
+                    .highlight2()
+                    .into(),
+                ")".into(),
+            ]
+        });
+
+        file_info_state.list_len = list_items.len();
+        file_info_state.paths = paths;
+
+        let block = get_block(is_focused);
+
+        frame.render_stateful_widget(
+            List::new(list_items)
+                .block(block)
+                .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+            rect,
+            &mut file_info_state.tree_state.list_state,
+        );
+    }
+}
+
+struct ParagraphInfoWidget<'info> {
+    info: &'info FileInfoType,
+}
+
+impl CustomWidget for ParagraphInfoWidget<'_> {
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        Some(FocusableWidget::FileInfo)
+    }
+
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
+        let is_focused = context.is_focused();
+        let (app, frame) = context.app_frame_mut();
+        let file_info_state = &mut app.file_info_state;
+
+        let text = match self.info {
+            FileInfoType::Info(info) => {
+                let mapping = &info.source_mapping;
+
+                let text: Text = if mapping.is_empty() {
+                    vec!["File contains empty sourcemap (both \"sources\" and \"mappings\" arrays are empty).".into()]
+                        .into()
+                } else {
+                    let sources_root = mapping.sources_root();
+
+                    let source_file_len = mapping.actual_source_file_len();
+
+                    let mut lines = vec![
+                        Line::from(vec![
+                            "File size: ".into(),
+                            format_bytes(source_file_len).highlight().into(),
+                            ".".into(),
+                        ]),
+                        Line::from(vec![
+                            "Number of files: ".into(),
+                            info.info_by_file.len().to_string().highlight(),
+                            ".".into(),
+                        ]),
+                        Line::from(vec![
+                            "Size contribution per file (all paths are relative to ".into(),
+                            sources_root.bold().into(),
+                            "):".into(),
+                        ]),
+                    ];
+
+                    let mut info_by_file = info.info_by_file.iter().collect::<Vec<&SourceMappingFileInfo>>();
+                    info_by_file.sort_by_key(|i| i.bytes);
+
+                    for file_info in info_by_file.iter().rev() {
+                        lines.push(
+                            vec![
+                                "- ".into(),
+                                without_relative_part(info.get_file_name(file_info.file)).bold().into(),
+                                ", size ".into(),
+                                format_bytes(file_info.bytes as u64).highlight().into(),
+                                " (".into(),
+                                format_percentage(file_info.bytes as u64, source_file_len)
+                                    .highlight2()
+                                    .into(),
+                                ")".into(),
+                            ]
+                            .into(),
+                        );
+                    }
+
+                    let sum_bytes = info.sum_bytes as u64;
+
                     lines.push(
                         vec![
-                            "- ".into(),
-                            without_relative_part(info.get_file_name(file_info.file)).bold().into(),
-                            ", size ".into(),
-                            format_bytes(file_info.bytes as u64).highlight().into(),
+                            "Sum: ".into(),
+                            format_bytes(sum_bytes).highlight(),
                             " (".into(),
-                            format_percentage(file_info.bytes as u64, source_file_len)
-                                .highlight2()
-                                .into(),
+                            format_percentage(sum_bytes, source_file_len).highlight2().into(),
                             ")".into(),
                         ]
                         .into(),
                     );
-                }
 
-                let sum_bytes = info.sum_bytes as u64;
+                    let rest = source_file_len - sum_bytes;
 
-                lines.push(
-                    vec![
-                        "Sum: ".into(),
-                        format_bytes(sum_bytes).highlight(),
-                        " (".into(),
-                        format_percentage(sum_bytes, source_file_len).highlight2().into(),
-                        ")".into(),
-                    ]
-                    .into(),
-                );
+                    lines.push(
+                        vec![
+                            "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
+                            format_bytes(rest).highlight().into(),
+                            " (".into(),
+                            format_percentage(rest, source_file_len).highlight2().into(),
+                            ")".into(),
+                        ]
+                        .into(),
+                    );
 
-                let rest = source_file_len - sum_bytes;
+                    lines.into()
+                };
 
-                lines.push(
-                    vec![
-                        "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
-                        format_bytes(rest).highlight().into(),
-                        " (".into(),
-                        format_percentage(rest, source_file_len).highlight2().into(),
-                        ")".into(),
-                    ]
-                    .into(),
-                );
+                text
+            }
+            FileInfoType::Err(error_info) => error_info.error.to_string().into(),
+        };
 
-                lines.into()
-            };
+        let block = get_block(is_focused);
 
-            text
-        }
-        FileInfoType::Err(error_info) => error_info.error.to_string().into(),
-    };
+        let block_inner = block.inner(rect);
 
-    let block = get_block(is_focused);
+        let height = calculate_height(&text, block.clone(), rect);
 
-    let block_inner = block.inner(rect);
+        file_info_state.max_height = block_inner.height;
+        file_info_state.text_height = height;
 
-    let height = calculate_height(&text, block.clone(), rect);
+        frame.render_widget(
+            Paragraph::new(text)
+                .block(block)
+                .wrap(Wrap { trim: true })
+                .scroll((file_info_state.scroll, 0)),
+            rect,
+        );
 
-    file_info_state.max_height = block_inner.height;
-    file_info_state.text_height = height;
+        let scrollbar = Scrollbar::default()
+            .orientation(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("↑"))
+            .end_symbol(Some("↓"));
+        let mut scrollbar_state =
+            ScrollbarState::new(file_info_state.max_scroll() as usize).position(file_info_state.scroll as usize);
 
-    f.render_widget(
-        Paragraph::new(text)
-            .block(block)
-            .wrap(Wrap { trim: true })
-            .scroll((file_info_state.scroll, 0)),
-        rect,
-    );
-
-    let scrollbar = Scrollbar::default()
-        .orientation(ScrollbarOrientation::VerticalRight)
-        .begin_symbol(Some("↑"))
-        .end_symbol(Some("↓"));
-    let mut scrollbar_state =
-        ScrollbarState::new(file_info_state.max_scroll() as usize).position(file_info_state.scroll as usize);
-
-    f.render_stateful_widget(
-        scrollbar,
-        rect.inner(&Margin {
-            vertical: 1,
-            horizontal: 0,
-        }),
-        &mut scrollbar_state,
-    );
+        frame.render_stateful_widget(
+            scrollbar,
+            rect.inner(&Margin {
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
+    }
 }
 
 fn get_block<'a>(is_focused: bool) -> Block<'a> {

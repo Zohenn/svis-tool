@@ -19,9 +19,12 @@ use ratatui::{
 use crate::theme;
 
 use self::{
-    core::{FocusableWidgetState, HandleEventResult},
+    core::{
+        custom_widget::{CustomWidget, RenderContext},
+        FocusableWidgetState, HandleEventResult,
+    },
     widgets::file_list::{render_file_list, AnalyzeState, FileListState},
-    widgets::{dialog::DialogContent, fps::FpsWidget, mapping_info::FileInfoState},
+    widgets::{dialog::DialogContent, fps::FpsWidget, mapping_info::FileInfoState, path_input::PathInputWidget},
     widgets::{
         path_input::{render_path_input, PathState},
         search_dialog::SearchDialogState,
@@ -151,7 +154,10 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     render_help_message(f, app, chunks[0]);
 
-    render_path_input(f, app, chunks[1]);
+    let context = RenderContext::new(app, f, FocusableWidget::PathInput);
+    PathInputWidget.render(context, chunks[1]);
+    // app.path_state.render(context, chunks[1]);
+    // render_path_input(f, app, chunks[1]);
 
     render_file_list(f, app, chunks[2]);
 

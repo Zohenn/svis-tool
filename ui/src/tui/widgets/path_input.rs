@@ -3,6 +3,7 @@ use ratatui::{prelude::Rect, style::*, text::Line, Frame};
 
 use crate::keybindings;
 
+use crate::tui::core::custom_widget::{CustomWidget, RenderContext};
 use crate::tui::{
     core::{FocusableWidgetState, HandleEventResult},
     widget_utils::CustomStyles,
@@ -32,6 +33,22 @@ impl FocusableWidgetState for PathState {
         app.file_list_state.analyze_path(path);
 
         HandleEventResult::ChangeFocus(FocusableWidget::FileList)
+    }
+}
+
+pub struct PathInputWidget;
+
+impl CustomWidget for PathInputWidget {
+    type Data = ();
+
+    fn render<'widget, 'app: 'widget>(self, mut context: RenderContext<'app, '_, Self::Data>, rect: Rect) {
+        let label = Line::from(keybindings!("p""ath"));
+
+        let input = InputWidget::new(context.is_focused()).label(label);
+
+        let (app, frame) = context.app_frame_mut();
+
+        InputWidget::frame_render(frame, input, rect, &mut app.path_state.path_input);
     }
 }
 

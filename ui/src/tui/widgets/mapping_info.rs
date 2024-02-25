@@ -8,7 +8,6 @@ use ratatui::{
         block::{Position, Title},
         *,
     },
-    Frame,
 };
 
 use core::analyzer::SourceMappingFileInfo;

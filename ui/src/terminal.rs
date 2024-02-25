@@ -20,6 +20,8 @@ pub fn get_default_styles() -> Styles {
     }
 }
 
+// This function is very much used, not sure why rust-analyzer thinks otherwise.
+#[allow(dead_code)]
 pub fn print_file_info(info: &SourceMappingInfo) {
     let styles = get_default_styles();
 

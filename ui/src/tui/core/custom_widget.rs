@@ -37,6 +37,7 @@ impl<'context, 'app: 'context, 'frame: 'app> RenderContext<'app, 'frame> {
         (self.app, self.frame)
     }
 
+    #[allow(dead_code)]
     pub fn rendered_widget(&self) -> Option<FocusableWidget> {
         self.rendered_widget
     }
@@ -44,10 +45,6 @@ impl<'context, 'app: 'context, 'frame: 'app> RenderContext<'app, 'frame> {
     pub fn is_focused(&self) -> bool {
         self.app.focused_widget == self.rendered_widget
     }
-
-    // pub fn render(&mut self, render_callback: impl FnOnce(&mut Frame, &mut App, Rect)) {
-    //     render_callback(self.frame, self.app, self.rect)
-    // }
 }
 
 pub trait CustomWidget {

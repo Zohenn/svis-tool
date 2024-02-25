@@ -50,4 +50,8 @@ impl FpsWidget {
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
     }
+
+    pub fn visible(&self) -> bool {
+        self.visible
+    }
 }

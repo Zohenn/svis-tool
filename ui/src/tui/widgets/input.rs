@@ -28,7 +28,7 @@ impl InputWidgetState {
     }
 
     pub fn reset(&mut self) {
-        self.input.reset();
+        self.input.reset()
     }
 }
 
@@ -87,7 +87,7 @@ impl<'label> InputWidget<'label> {
     }
 }
 
-impl<'label> StatefulWidget for InputWidget<'label> {
+impl StatefulWidget for InputWidget<'_> {
     type State = InputWidgetState;
 
     fn render(self, rect: Rect, buf: &mut Buffer, state: &mut Self::State) {

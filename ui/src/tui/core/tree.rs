@@ -25,6 +25,7 @@ impl TreeState {
         self.initial_highlight = Some(path.to_owned());
     }
 
+    #[allow(dead_code)]
     pub fn with_expanded(expanded: HashSet<String>) -> Self {
         Self {
             expanded,
@@ -66,11 +67,11 @@ struct TreeNodeChildKey {
 impl Ord for TreeNodeChildKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         if self.r#type == other.r#type {
-            return self.key.cmp(&other.key);
+            self.key.cmp(&other.key)
         } else if matches!(self.r#type, TreeItemType::Node) {
-            return std::cmp::Ordering::Less;
+            std::cmp::Ordering::Less
         } else {
-            return std::cmp::Ordering::Greater;
+            std::cmp::Ordering::Greater
         }
     }
 }
@@ -294,10 +295,8 @@ fn aggregate_inner<D: Debug, A: Add<Output = A> + Copy>(
             }
 
             aggregated_data.insert(node.location.path.clone(), aggregation);
-            return aggregation;
+            aggregation
         }
-        TreeItem::Leaf(leaf) => {
-            return aggregator(&leaf.data);
-        }
+        TreeItem::Leaf(leaf) => aggregator(&leaf.data),
     }
 }

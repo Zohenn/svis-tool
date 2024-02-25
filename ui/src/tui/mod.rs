@@ -8,8 +8,7 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout},
-    prelude::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::*,
     text::{Line, Text},
     widgets::{Block, Paragraph},
@@ -19,13 +18,16 @@ use ratatui::{
 use crate::theme;
 
 use self::{
-    core::{FocusableWidgetState, HandleEventResult},
-    widgets::file_list::{render_file_list, AnalyzeState, FileListState},
-    widgets::{dialog::DialogContent, fps::FpsWidget, mapping_info::FileInfoState},
-    widgets::{
-        path_input::{render_path_input, PathState},
-        search_dialog::SearchDialogState,
+    core::{
+        custom_widget::{CustomWidget, RenderContext},
+        FocusableWidgetState, HandleEventResult,
     },
+    widgets::file_list::{AnalyzeState, FileListState},
+    widgets::{
+        dialog::DialogContent, file_list::FileListWidget, fps::FpsWidget, mapping_info::FileInfoState,
+        path_input::PathInputWidget,
+    },
+    widgets::{path_input::PathState, search_dialog::SearchDialogState},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -99,8 +101,10 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
+        let event_poll_timeout = if app.fps.visible() { 0 } else { 100 };
+
         // event::read is blocking, event::poll is not
-        if event::poll(Duration::from_millis(100))? {
+        if event::poll(Duration::from_millis(event_poll_timeout))? {
             if let Event::Key(key) = event::read()? {
                 if key.modifiers == KeyModifiers::CONTROL && matches!(key.code, KeyCode::Char('f')) {
                     app.fps.toggle();
@@ -149,11 +153,16 @@ fn ui(f: &mut Frame, app: &mut App) {
         .constraints([Constraint::Length(1), Constraint::Length(3), Constraint::Min(1)].as_ref())
         .split(f.size());
 
-    render_help_message(f, app, chunks[0]);
+    let widgets: [Box<dyn CustomWidget>; 3] = [
+        Box::new(HelpMessageWidget),
+        Box::new(PathInputWidget),
+        Box::new(FileListWidget),
+    ];
 
-    render_path_input(f, app, chunks[1]);
-
-    render_file_list(f, app, chunks[2]);
+    for (index, widget) in widgets.into_iter().enumerate() {
+        let context = RenderContext::new(app, f, widget.bound_state());
+        widget.render(context, chunks[index]);
+    }
 
     f.render_widget(
         &mut app.fps,
@@ -167,18 +176,26 @@ fn ui(f: &mut Frame, app: &mut App) {
     );
 }
 
-fn render_help_message(f: &mut Frame, app: &App, rect: Rect) {
-    let (msg, style) = match app.focused_widget {
-        Some(_) => (
-            vec!["Press ".into(), "Esc".bold(), " to unfocus".into()],
-            Style::default(),
-        ),
-        None => (
-            vec!["Press ".into(), "q".bold(), " to close the app".into()],
-            Style::default(),
-        ),
-    };
-    let text = Text::from(Line::from(msg)).patch_style(style);
+struct HelpMessageWidget;
 
-    f.render_widget(Paragraph::new(text), rect);
+impl CustomWidget for HelpMessageWidget {
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        None
+    }
+
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
+        let (msg, style) = match context.app().focused_widget {
+            Some(_) => (
+                vec!["Press ".into(), "Esc".bold(), " to unfocus".into()],
+                Style::default(),
+            ),
+            None => (
+                vec!["Press ".into(), "q".bold(), " to close the app".into()],
+                Style::default(),
+            ),
+        };
+
+        let text = Text::from(Line::from(msg)).patch_style(style);
+        context.frame_mut().render_widget(Paragraph::new(text), rect);
+    }
 }

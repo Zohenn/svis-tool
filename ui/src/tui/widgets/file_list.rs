@@ -16,20 +16,25 @@ use ratatui::{
         block::{Position, Title},
         List, ListItem,
     },
-    Frame,
 };
 use threadpool::Builder as ThreadPoolBuilder;
 
 use core::{analyzer::SourceMappingInfo, discover_files, handle_file};
 
-use crate::{keybindings, utils::format_bytes};
+use crate::{
+    keybindings,
+    tui::core::custom_widget::{CustomWidget, RenderContext},
+    utils::format_bytes,
+};
 
 use crate::tui::{
     core::{FocusableWidgetState, HandleEventResult, SortOrder, StatefulList},
     widget_utils::{centered_text, default_block, CustomStyles},
-    widgets::mapping_info::{render_mapping_info, FileInfoState},
+    widgets::mapping_info::FileInfoState,
     App, FocusableWidget,
 };
+
+use super::mapping_info::MappingInfoWidget;
 
 pub enum AnalyzeState {
     Pending(AnalyzePendingState),
@@ -258,124 +263,136 @@ pub enum FileInfoSort {
     Name,
 }
 
-pub fn render_file_list(f: &mut Frame, app: &mut App, rect: Rect) {
-    let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileList));
+pub struct FileListWidget;
 
-    // Looks kinda funny, but allows for mutex value to be moved out of struct.
-    let mut analyze_state = std::mem::replace(&mut app.file_list_state.analyze_state, None);
-
-    match analyze_state {
-        Some(AnalyzeState::Pending(pending_state)) => {
-            let files_checked = pending_state.count.load(Ordering::Relaxed);
-            centered_text(f, &format!("Files checked: {}", files_checked), rect);
-
-            match pending_state.get_state() {
-                OperationState::Done => {
-                    let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
-                    let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
-                    done_state.file_infos.next();
-                    done_state.sort_with_order(done_state.sort, done_state.sort_order);
-                    analyze_state = Some(AnalyzeState::Done(done_state));
-                }
-                OperationState::Pending => {
-                    analyze_state = Some(AnalyzeState::Pending(pending_state));
-                }
-                OperationState::Err => {
-                    let error = Arc::try_unwrap(pending_state.error).unwrap().into_inner().unwrap();
-                    analyze_state = Some(AnalyzeState::Err(error));
-                }
-            }
-        }
-        Some(AnalyzeState::Err(ref err)) => {
-            centered_text(f, &err.to_string(), rect);
-        }
-        Some(AnalyzeState::Done(ref mut state)) => {
-            let selected_item = state.file_infos.selected_item();
-
-            let constraints = match selected_item {
-                Some(_) => [Constraint::Percentage(50), Constraint::Percentage(50)],
-                None => [Constraint::Percentage(100), Constraint::Percentage(0)],
-            };
-
-            let chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints(constraints.as_ref())
-                .split(rect);
-
-            let file_infos: Vec<ListItem> = state
-                .file_infos
-                .items
-                .iter()
-                .map(|info| {
-                    let file_name = match info {
-                        FileInfoType::Info(info) => &info.source_mapping.file_name,
-                        FileInfoType::Err(error_info) => &error_info.file_name,
-                    };
-                    let mut content = vec!["./".into(), file_name.into(), " ".into()];
-
-                    if let FileInfoType::Info(info) = info {
-                        content.push(format_bytes(info.source_mapping.actual_source_file_len()).highlight());
-                        content.extend(
-                            [
-                                " (".into(),
-                                info.info_by_file.len().to_string().highlight2(),
-                                " files".highlight2(),
-                                ")".into(),
-                            ]
-                            .into_iter(),
-                        );
-                    } else {
-                        content.push("!".error());
-                    }
-                    ListItem::new(Line::from(content))
-                })
-                .collect();
-
-            let label = Line::from(keybindings!("f""ile list"));
-            let mut block = default_block().title(label);
-
-            if let Some(item) = selected_item {
-                let is_focused = matches!(app.focused_widget, Some(FocusableWidget::FileInfo));
-                render_mapping_info(f, &mut app.file_info_state, item, is_focused, chunks[1]);
-
-                let title_contents = keybindings!(
-                    "↑↓ jk"" select ";
-                    "|".dark_gray().into(),
-                    " sort: ".white().into();,
-                    "s""ize, ", "n""ame ";
-                    "| ".dark_gray().into();,
-                    "f""ind source file"
-                );
-
-                block = block
-                    .title(Title::from(Line::from(title_contents)).position(Position::Bottom))
-                    .title(
-                        Title::from(Line::from(
-                            format!(
-                                " {}/{} ",
-                                state.file_infos.state.selected().unwrap() + 1,
-                                state.file_infos.items.len()
-                            )
-                            .white(),
-                        ))
-                        .position(Position::Bottom)
-                        .alignment(Alignment::Right),
-                    );
-            }
-
-            if is_focused {
-                block = block.border_style(Style::default().yellow());
-            }
-
-            let file_infos_list = List::new(file_infos)
-                .block(block)
-                .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
-            f.render_stateful_widget(file_infos_list, chunks[0], &mut state.file_infos.state);
-        }
-        None => {
-            centered_text(f, "Enter path to start", rect);
-        }
+impl CustomWidget for FileListWidget {
+    fn bound_state(&self) -> Option<FocusableWidget> {
+        Some(FocusableWidget::FileList)
     }
 
-    app.file_list_state.analyze_state = analyze_state;
+    fn render<'widget, 'app: 'widget>(&self, mut context: RenderContext<'app, '_>, rect: Rect) {
+        let is_focused = context.is_focused();
+
+        // Looks kinda funny, but allows for mutex value to be moved out of struct.
+        let mut analyze_state = std::mem::replace(&mut context.app_mut().file_list_state.analyze_state, None);
+
+        match analyze_state {
+            Some(AnalyzeState::Pending(pending_state)) => {
+                let files_checked = pending_state.count.load(Ordering::Relaxed);
+                centered_text(context.frame_mut(), &format!("Files checked: {}", files_checked), rect);
+
+                match pending_state.get_state() {
+                    OperationState::Done => {
+                        let file_infos = Arc::try_unwrap(pending_state.file_infos).unwrap().into_inner().unwrap();
+                        let mut done_state = AnalyzeDoneState::new(files_checked, file_infos);
+                        done_state.file_infos.next();
+                        done_state.sort_with_order(done_state.sort, done_state.sort_order);
+                        analyze_state = Some(AnalyzeState::Done(done_state));
+                    }
+                    OperationState::Pending => {
+                        analyze_state = Some(AnalyzeState::Pending(pending_state));
+                    }
+                    OperationState::Err => {
+                        let error = Arc::try_unwrap(pending_state.error).unwrap().into_inner().unwrap();
+                        analyze_state = Some(AnalyzeState::Err(error));
+                    }
+                }
+            }
+            Some(AnalyzeState::Err(ref err)) => {
+                centered_text(context.frame_mut(), &err.to_string(), rect);
+            }
+            Some(AnalyzeState::Done(ref mut state)) => {
+                let has_selection = state.file_infos.has_selection();
+
+                let constraints = match has_selection {
+                    true => [Constraint::Percentage(50), Constraint::Percentage(50)],
+                    false => [Constraint::Percentage(100), Constraint::Percentage(0)],
+                };
+
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints(constraints.as_ref())
+                    .split(rect);
+
+                let file_infos: Vec<ListItem> = state
+                    .file_infos
+                    .items
+                    .iter()
+                    .map(|info| {
+                        let file_name = match info {
+                            FileInfoType::Info(info) => &info.source_mapping.file_name,
+                            FileInfoType::Err(error_info) => &error_info.file_name,
+                        };
+                        let mut content = vec!["./".into(), file_name.into(), " ".into()];
+
+                        if let FileInfoType::Info(info) = info {
+                            content.push(format_bytes(info.source_mapping.actual_source_file_len()).highlight());
+                            content.extend(
+                                [
+                                    " (".into(),
+                                    info.info_by_file.len().to_string().highlight2(),
+                                    " files".highlight2(),
+                                    ")".into(),
+                                ]
+                                .into_iter(),
+                            );
+                        } else {
+                            content.push("!".error());
+                        }
+                        ListItem::new(Line::from(content))
+                    })
+                    .collect();
+
+                let label = Line::from(keybindings!("f""ile list"));
+                let mut block = default_block().title(label);
+
+                if has_selection {
+                    let title_contents = keybindings!(
+                        "↑↓ jk"" select ";
+                        "|".dark_gray().into(),
+                        " sort: ".white().into();,
+                        "s""ize, ", "n""ame ";
+                        "| ".dark_gray().into();,
+                        "f""ind source file"
+                    );
+
+                    block = block
+                        .title(Title::from(Line::from(title_contents)).position(Position::Bottom))
+                        .title(
+                            Title::from(Line::from(
+                                format!(
+                                    " {}/{} ",
+                                    state.file_infos.state.selected().unwrap() + 1,
+                                    state.file_infos.items.len()
+                                )
+                                .white(),
+                            ))
+                            .position(Position::Bottom)
+                            .alignment(Alignment::Right),
+                        );
+                }
+
+                if is_focused {
+                    block = block.border_style(Style::default().yellow());
+                }
+
+                let (app, frame) = context.app_frame_mut();
+
+                let file_infos_list = List::new(file_infos)
+                    .block(block)
+                    .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+                frame.render_stateful_widget(file_infos_list, chunks[0], &mut state.file_infos.state);
+
+                if let Some(item) = state.file_infos.selected_item() {
+                    let context = RenderContext::new(app, frame, Some(FocusableWidget::FileInfo));
+                    MappingInfoWidget { info: item }.render(context, chunks[1]);
+                }
+            }
+            None => {
+                centered_text(context.frame_mut(), "Enter path to start", rect);
+            }
+        }
+
+        context.app_mut().file_list_state.analyze_state = analyze_state;
+    }
 }

@@ -43,6 +43,10 @@ impl<T> StatefulList<T> {
         self.state.select(Some(i));
     }
 
+    pub fn has_selection(&self) -> bool {
+        self.state.selected().is_some()
+    }
+
     pub fn select(&mut self, index: usize) {
         assert!(index < self.items.len());
         self.state.select(Some(index));

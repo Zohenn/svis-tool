@@ -1,3 +1,4 @@
+pub mod custom_widget;
 pub mod list;
 pub mod tree;
 

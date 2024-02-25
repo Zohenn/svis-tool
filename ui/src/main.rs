@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let path = matches.get_one::<String>("path");
     match matches.get_one::<bool>("tui") {
         Some(_) => run_tui(path.map(|x| x.as_str())),
-        None => run_simple(&path.unwrap()),
+        None => run_simple(path.unwrap()),
     }
 }
 

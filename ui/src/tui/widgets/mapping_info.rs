@@ -100,11 +100,9 @@ impl CustomWidget for TreeInfoWidget<'_> {
             },
             move |aggregation| {
                 vec![
-                    format_bytes(aggregation.bytes).highlight().into(),
+                    format_bytes(aggregation.bytes).highlight(),
                     " (".into(),
-                    format_percentage(aggregation.bytes, aggregator_source_file_len)
-                        .highlight2()
-                        .into(),
+                    format_percentage(aggregation.bytes, aggregator_source_file_len).highlight2(),
                     ") ".into(),
                 ]
             },
@@ -118,11 +116,9 @@ impl CustomWidget for TreeInfoWidget<'_> {
                     .unwrap()
                     .into(),
                 " ".into(),
-                format_bytes(file_info.bytes as u64).highlight().into(),
+                format_bytes(file_info.bytes as u64).highlight(),
                 " (".into(),
-                format_percentage(file_info.bytes as u64, source_file_len)
-                    .highlight2()
-                    .into(),
+                format_percentage(file_info.bytes as u64, source_file_len).highlight2(),
                 ")".into(),
             ]
         });
@@ -171,7 +167,7 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
                     let mut lines = vec![
                         Line::from(vec![
                             "File size: ".into(),
-                            format_bytes(source_file_len).highlight().into(),
+                            format_bytes(source_file_len).highlight(),
                             ".".into(),
                         ]),
                         Line::from(vec![
@@ -181,7 +177,7 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
                         ]),
                         Line::from(vec![
                             "Size contribution per file (all paths are relative to ".into(),
-                            sources_root.bold().into(),
+                            sources_root.bold(),
                             "):".into(),
                         ]),
                     ];
@@ -193,13 +189,11 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
                         lines.push(
                             vec![
                                 "- ".into(),
-                                without_relative_part(info.get_file_name(file_info.file)).bold().into(),
+                                without_relative_part(info.get_file_name(file_info.file)).bold(),
                                 ", size ".into(),
-                                format_bytes(file_info.bytes as u64).highlight().into(),
+                                format_bytes(file_info.bytes as u64).highlight(),
                                 " (".into(),
-                                format_percentage(file_info.bytes as u64, source_file_len)
-                                    .highlight2()
-                                    .into(),
+                                format_percentage(file_info.bytes as u64, source_file_len).highlight2(),
                                 ")".into(),
                             ]
                             .into(),
@@ -213,7 +207,7 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
                             "Sum: ".into(),
                             format_bytes(sum_bytes).highlight(),
                             " (".into(),
-                            format_percentage(sum_bytes, source_file_len).highlight2().into(),
+                            format_percentage(sum_bytes, source_file_len).highlight2(),
                             ")".into(),
                         ]
                         .into(),
@@ -224,9 +218,9 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
                     lines.push(
                         vec![
                             "Remaining size taken by preamble, imports, whitespace, comments, etc.: ".into(),
-                            format_bytes(rest).highlight().into(),
+                            format_bytes(rest).highlight(),
                             " (".into(),
-                            format_percentage(rest, source_file_len).highlight2().into(),
+                            format_percentage(rest, source_file_len).highlight2(),
                             ")".into(),
                         ]
                         .into(),
@@ -425,7 +419,7 @@ impl FileInfoState {
     }
 }
 
-fn calculate_height<'a>(text: &Text, block: Block, area: Rect) -> u16 {
+fn calculate_height(text: &Text, block: Block, area: Rect) -> u16 {
     // Total area of a paragraph must fit into u16, so height of the rect is computed
     // accordingly using max line width.
     let area = Rect::new(area.x, area.y, area.width, u16::MAX / area.width);

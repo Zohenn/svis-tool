@@ -53,7 +53,7 @@ pub fn vlq_decode(base64_str: &str) -> Result<[i32; 4]> {
         let mut value = 0i32;
         let mut negative = false;
 
-        for (index, vlq_val) in vlq.into_iter().enumerate().rev() {
+        for (index, vlq_val) in vlq.iter().enumerate().rev() {
             let mut vlq_value = *vlq_val as i32;
             if index == 0 {
                 // First value in VLQ sequence decides whether end number is positive or negative.

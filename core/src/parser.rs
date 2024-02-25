@@ -12,8 +12,7 @@ pub fn parse_file_by_path(path: &str) -> Result<(String, SourceMapping)> {
 
     let last_line = contents
         .lines()
-        .rev()
-        .next()
+        .next_back()
         .ok_or_else(|| anyhow!("File {path} is empty."))?;
 
     let mut raw_source_mapping = parse_raw_source_mapping(path, last_line)?;
@@ -69,7 +68,7 @@ fn parse_raw_source_mapping(path: &str, line: &str) -> Result<RawSourceMapping> 
 
     let raw_source_mapping: RawSourceMapping = serde_json::from_str(&json_str)?;
 
-    return Ok(raw_source_mapping);
+    Ok(raw_source_mapping)
 }
 
 #[derive(Debug)]

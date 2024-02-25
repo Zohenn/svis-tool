@@ -53,51 +53,45 @@ impl FocusableWidgetState for SearchDialogState {
         match event.code {
             KeyCode::Enter => HandleEventResult::Callback(Box::new(Self::callback)),
             KeyCode::Esc => HandleEventResult::ChangeFocus(FocusableWidget::FileList),
-            _ => return self.path_input.handle_events(event),
+            _ => self.path_input.handle_events(event),
         }
     }
 
     fn callback(app: &mut App) -> HandleEventResult {
         let search_value = app.search_dialog.path_input.value().to_lowercase();
 
-        match &mut app.file_list_state.analyze_state {
-            Some(AnalyzeState::Done(done_state)) => {
-                let mut found_file = None;
+        if let Some(AnalyzeState::Done(done_state)) = &mut app.file_list_state.analyze_state {
+            let mut found_file = None;
 
-                for (pos, file_info) in done_state.file_infos.items.iter().enumerate() {
-                    let FileInfoType::Info(info) = file_info else {
-                        continue;
-                    };
+            for (pos, file_info) in done_state.file_infos.items.iter().enumerate() {
+                let FileInfoType::Info(info) = file_info else {
+                    continue;
+                };
 
-                    let file = info
-                        .source_mapping
-                        .sources
-                        .iter()
-                        .find(|source| source.to_lowercase().contains(&search_value));
+                let file = info
+                    .source_mapping
+                    .sources
+                    .iter()
+                    .find(|source| source.to_lowercase().contains(&search_value));
 
-                    let Some(file) = file else {
-                        continue;
-                    };
+                let Some(file) = file else {
+                    continue;
+                };
 
-                    found_file = Some((pos, file));
-                }
-
-                match found_file {
-                    Some((pos, file)) => {
-                        let file = without_relative_part(file).to_owned();
-                        done_state.file_infos.select(pos);
-                        app.search_dialog.path_input.reset();
-
-                        app.file_info_state = FileInfoState::default();
-                        app.file_info_state.tree_state.ensure_leaf_is_visible(&file);
-                        app.file_info_state.tree_state.initial_highlight(&file);
-
-                        return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo);
-                    }
-                    _ => {}
-                }
+                found_file = Some((pos, file));
             }
-            _ => {}
+
+            if let Some((pos, file)) = found_file {
+                let file = without_relative_part(file).to_owned();
+                done_state.file_infos.select(pos);
+                app.search_dialog.path_input.reset();
+
+                app.file_info_state = FileInfoState::default();
+                app.file_info_state.tree_state.ensure_leaf_is_visible(&file);
+                app.file_info_state.tree_state.initial_highlight(&file);
+
+                return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo);
+            }
         }
         HandleEventResult::ChangeFocus(FocusableWidget::FileList)
     }

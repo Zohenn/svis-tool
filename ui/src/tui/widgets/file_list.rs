@@ -92,10 +92,10 @@ impl FileListState {
     }
 }
 
-impl<'a> FocusableWidgetState for FileListState {
+impl FocusableWidgetState for FileListState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
-        match &mut self.analyze_state {
-            Some(AnalyzeState::Done(state)) => match event.code {
+        if let Some(AnalyzeState::Done(state)) = &mut self.analyze_state {
+            match event.code {
                 KeyCode::Esc => {
                     state.file_infos.unselect();
                     return HandleEventResult::Blur;
@@ -119,8 +119,7 @@ impl<'a> FocusableWidgetState for FileListState {
                 KeyCode::Char('f') => return HandleEventResult::ChangeFocus(FocusableWidget::SearchDialog),
                 KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
                 _ => {}
-            },
-            _ => {}
+            }
         }
 
         if matches!(event.code, KeyCode::Esc) {
@@ -189,7 +188,7 @@ impl AnalyzeDoneState {
     }
 
     pub fn sort(&mut self, sort: FileInfoSort) {
-        let sort_order = if &self.sort == &sort {
+        let sort_order = if self.sort == sort {
             self.sort_order.reverse()
         } else {
             SortOrder::Asc
@@ -274,7 +273,7 @@ impl CustomWidget for FileListWidget {
         let is_focused = context.is_focused();
 
         // Looks kinda funny, but allows for mutex value to be moved out of struct.
-        let mut analyze_state = std::mem::replace(&mut context.app_mut().file_list_state.analyze_state, None);
+        let mut analyze_state = context.app_mut().file_list_state.analyze_state.take();
 
         match analyze_state {
             Some(AnalyzeState::Pending(pending_state)) => {
@@ -327,15 +326,12 @@ impl CustomWidget for FileListWidget {
 
                         if let FileInfoType::Info(info) = info {
                             content.push(format_bytes(info.source_mapping.actual_source_file_len()).highlight());
-                            content.extend(
-                                [
-                                    " (".into(),
-                                    info.info_by_file.len().to_string().highlight2(),
-                                    " files".highlight2(),
-                                    ")".into(),
-                                ]
-                                .into_iter(),
-                            );
+                            content.extend([
+                                " (".into(),
+                                info.info_by_file.len().to_string().highlight2(),
+                                " files".highlight2(),
+                                ")".into(),
+                            ]);
                         } else {
                             content.push("!".error());
                         }
@@ -349,10 +345,10 @@ impl CustomWidget for FileListWidget {
                 if has_selection {
                     let title_contents = keybindings!(
                         "↑↓ jk"" select ";
-                        "|".dark_gray().into(),
-                        " sort: ".white().into();,
+                        "|".dark_gray(),
+                        " sort: ".white();,
                         "s""ize, ", "n""ame ";
-                        "| ".dark_gray().into();,
+                        "| ".dark_gray();,
                         "f""ind source file"
                     );
 

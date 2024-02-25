@@ -8,7 +8,7 @@ pub fn format_percentage(numerator: u64, denominator: u64) -> String {
 
 pub fn format_bytes(bytes: u64) -> String {
     let kilos = bytes as f64 / 1024f64;
-    let megs = kilos as f64 / 1024f64;
+    let megs = kilos / 1024f64;
 
     if megs > 1f64 {
         format!("{megs:.2} MiB")

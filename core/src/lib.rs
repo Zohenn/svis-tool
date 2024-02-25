@@ -8,10 +8,7 @@ pub mod analyzer;
 pub mod parser;
 mod vlq;
 
-pub fn analyze_path(
-    path: &str,
-    mut on_file_result: impl FnMut(&str, Result<SourceMappingInfo, Error>) -> (),
-) -> Result<()> {
+pub fn analyze_path(path: &str, mut on_file_result: impl FnMut(&str, Result<SourceMappingInfo, Error>)) -> Result<()> {
     let files_to_check = discover_files(path)?;
 
     for file in files_to_check.iter() {
@@ -27,16 +24,10 @@ pub fn discover_files(path: &str) -> Result<Vec<String>> {
     let mut files_to_check: Vec<String> = vec![];
 
     if path_meta.is_dir() {
-        for entry in std::fs::read_dir(path)? {
-            match entry {
-                Ok(entry) => {
-                    let path = entry.path();
-                    match path.extension().unwrap().to_str().unwrap() {
-                        "js" => files_to_check.push(path.to_str().unwrap().to_owned()),
-                        _ => {}
-                    }
-                }
-                Err(_) => {}
+        for entry in (std::fs::read_dir(path)?).flatten() {
+            let path = entry.path();
+            if let "js" = path.extension().unwrap().to_str().unwrap() {
+                files_to_check.push(path.to_str().unwrap().to_owned())
             }
         }
     } else {

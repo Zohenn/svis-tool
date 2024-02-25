@@ -22,9 +22,7 @@ impl FocusableWidgetState for PathState {
     fn handle_events(&mut self, event: KeyEvent) -> HandleEventResult {
         match event.code {
             KeyCode::Enter => HandleEventResult::Callback(Box::new(Self::callback)),
-            _ => {
-                return self.path_input.handle_events(event);
-            }
+            _ => self.path_input.handle_events(event),
         }
     }
 

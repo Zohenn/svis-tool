@@ -58,10 +58,16 @@ enum TreeItemType {
     Leaf,
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Debug, Clone)]
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
 struct TreeNodeChildKey {
     key: CompactString,
     r#type: TreeItemType,
+}
+
+impl PartialOrd for TreeNodeChildKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for TreeNodeChildKey {
@@ -106,6 +112,7 @@ pub struct TreeLeaf<D: Debug> {
 pub struct Tree<D: Debug, A: Add<Output = A> + Copy> {
     pub items: TreeItem<D>,
     aggregated_data: HashMap<String, A>,
+    #[allow(clippy::type_complexity)]
     aggregation_mapper: Option<Box<dyn Fn(&A) -> Vec<Span>>>,
 }
 
@@ -134,10 +141,10 @@ impl<D: Debug> Tree<D, NoAggregation> {
             let leaf = path_parts.pop().unwrap();
             let mut node = &mut root_node;
 
-            if path_parts.len() > 0 {
+            if !path_parts.is_empty() {
                 for part in path_parts.into_iter() {
                     let map_key = TreeNodeChildKey {
-                        key: part.into(),
+                        key: part,
                         r#type: TreeItemType::Node,
                     };
 
@@ -224,15 +231,12 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
                     let mut line_contents =
                         vec![padding.clone().into(), icon.into(), (&child_node.location.key).into()];
 
-                    match (
+                    if let (Some(aggregation_mapper), Some(aggregation)) = (
                         &self.aggregation_mapper,
                         self.aggregated_data.get(&child_node.location.path),
                     ) {
-                        (Some(aggregation_mapper), Some(aggregation)) => {
-                            line_contents.push(" ".into());
-                            line_contents.append(&mut aggregation_mapper(aggregation));
-                        }
-                        _ => {}
+                        line_contents.push(" ".into());
+                        line_contents.append(&mut aggregation_mapper(aggregation));
                     }
 
                     items.push(ListItem::new(Line::from(line_contents)));

@@ -47,7 +47,7 @@ pub struct App {
     search_dialog: SearchDialogState,
 }
 
-impl<'a> Default for App {
+impl Default for App {
     fn default() -> App {
         App {
             focused_widget: Some(FocusableWidget::PathInput),
@@ -90,12 +90,9 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
         .path_input
         .with_value(initial_path.unwrap_or("./test_files/work").into());
 
-    match initial_path {
-        Some(path) => {
-            app.file_list_state.analyze_path(path.into());
-            app.focused_widget = Some(FocusableWidget::FileList);
-        }
-        _ => {}
+    if let Some(path) = initial_path {
+        app.file_list_state.analyze_path(path.into());
+        app.focused_widget = Some(FocusableWidget::FileList);
     }
 
     loop {
@@ -126,11 +123,8 @@ pub fn run_tui_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, initial
                             }
                             KeyCode::Char('f') => {
                                 app.focused_widget = Some(FocusableWidget::FileList);
-                                match &mut app.file_list_state.analyze_state {
-                                    Some(AnalyzeState::Done(state)) => {
-                                        state.file_infos.next();
-                                    }
-                                    _ => {}
+                                if let Some(AnalyzeState::Done(state)) = &mut app.file_list_state.analyze_state {
+                                    state.file_infos.next();
                                 };
                             }
                             KeyCode::Char('q') => {

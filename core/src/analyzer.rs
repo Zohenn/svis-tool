@@ -21,7 +21,7 @@ impl SourceMappingInfo {
     }
 }
 
-pub fn calculate_size_by_file<'a>(file_contents: &str, source_mapping: SourceMapping) -> Result<SourceMappingInfo> {
+pub fn calculate_size_by_file(file_contents: &str, source_mapping: SourceMapping) -> Result<SourceMappingInfo> {
     let file_lines = file_contents.lines().collect::<Vec<&str>>();
 
     let mut sum_bytes = 0u32;

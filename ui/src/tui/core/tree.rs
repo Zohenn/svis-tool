@@ -6,6 +6,8 @@ use compact_str::CompactString;
 use ratatui::prelude::*;
 use ratatui::widgets::{ListItem, ListState};
 
+use super::ListOperations;
+
 #[derive(Default)]
 pub struct TreeState {
     pub expanded: HashSet<String>,
@@ -13,6 +15,7 @@ pub struct TreeState {
     rendered: bool,
     initial_expansion_depth: u8,
     initial_highlight: Option<String>,
+    paths: Vec<String>,
 }
 
 impl TreeState {
@@ -33,6 +36,7 @@ impl TreeState {
             rendered: false,
             initial_expansion_depth: 0,
             initial_highlight: None,
+            paths: vec![],
         }
     }
 
@@ -43,6 +47,32 @@ impl TreeState {
             let current_path_parts = parts.get(0..=index).unwrap();
             self.expanded.insert(current_path_parts.join("/"));
         }
+    }
+
+    pub fn toggle_selected(&mut self) {
+        let path = &self.paths[self.selected().unwrap_or(0)];
+
+        if !path.is_empty() {
+            if self.expanded.contains(path) {
+                self.expanded.remove(path);
+            } else {
+                self.expanded.insert(path.clone());
+            }
+        }
+    }
+}
+
+impl ListOperations for TreeState {
+    fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    fn selected(&self) -> Option<usize> {
+        self.list_state.selected()
+    }
+
+    fn select_inner(&mut self, index: Option<usize>) {
+        self.list_state.select(index)
     }
 }
 
@@ -200,11 +230,7 @@ impl<D: Debug> Tree<D, NoAggregation> {
 }
 
 impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
-    pub fn as_list_items(
-        &self,
-        state: &mut TreeState,
-        data_mapper: impl Fn(&D) -> Vec<Span>,
-    ) -> (Vec<String>, Vec<ListItem>) {
+    pub fn as_list_items(&self, state: &mut TreeState, data_mapper: impl Fn(&D) -> Vec<Span>) -> Vec<ListItem> {
         let mut paths = vec![];
         let mut items = vec![];
 
@@ -268,8 +294,9 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
         }
 
         state.rendered = true;
+        state.paths = paths;
 
-        (paths, items)
+        items
     }
 }
 

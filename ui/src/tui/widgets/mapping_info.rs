@@ -15,7 +15,10 @@ use std::ops::Add;
 
 use crate::{
     keybindings,
-    tui::core::custom_widget::{CustomWidget, RenderContext},
+    tui::core::{
+        custom_widget::{CustomWidget, RenderContext},
+        ListOperations,
+    },
     utils::{format_bytes, format_percentage, without_relative_part},
 };
 
@@ -108,7 +111,7 @@ impl CustomWidget for TreeInfoWidget<'_> {
             },
         );
 
-        let (paths, list_items) = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
+        let list_items = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
             vec![
                 without_relative_part(info.get_file_name(file_info.file))
                     .split('/')
@@ -122,9 +125,6 @@ impl CustomWidget for TreeInfoWidget<'_> {
                 ")".into(),
             ]
         });
-
-        file_info_state.list_len = list_items.len();
-        file_info_state.paths = paths;
 
         let block = get_block(is_focused);
 
@@ -286,13 +286,12 @@ pub enum FileInfoViewType {
 }
 
 pub struct FileInfoState {
+    pub view_type: FileInfoViewType,
+    pub tree_state: TreeState,
+    // paragraph state
     pub scroll: u16,
     pub text_height: u16,
     pub max_height: u16,
-    pub list_len: usize,
-    pub tree_state: TreeState,
-    pub paths: Vec<String>,
-    pub view_type: FileInfoViewType,
 }
 
 impl FileInfoState {
@@ -309,9 +308,7 @@ impl Default for FileInfoState {
             scroll: 0,
             text_height: 0,
             max_height: 0,
-            list_len: 0,
             tree_state,
-            paths: vec![],
             view_type: FileInfoViewType::Tree,
         }
     }
@@ -351,43 +348,13 @@ impl FileInfoState {
     fn handle_tree_events(&mut self, event: KeyEvent) {
         match event.code {
             KeyCode::Down | KeyCode::Char('j') => {
-                // TODO: this is mostly the same as StatefulList
-                let i = match self.tree_state.list_state.selected() {
-                    Some(i) => {
-                        if i >= self.list_len - 1 {
-                            0
-                        } else {
-                            i + 1
-                        }
-                    }
-                    None => 0,
-                };
-                self.tree_state.list_state.select(Some(i));
+                self.tree_state.next();
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                // TODO: this is mostly the same as StatefulList
-                let i = match self.tree_state.list_state.selected() {
-                    Some(i) => {
-                        if i == 0 {
-                            self.list_len - 1
-                        } else {
-                            i - 1
-                        }
-                    }
-                    None => 0,
-                };
-                self.tree_state.list_state.select(Some(i));
+                self.tree_state.previous();
             }
             KeyCode::Enter => {
-                let path = &self.paths[self.tree_state.list_state.selected().unwrap_or(0)];
-
-                if !path.is_empty() {
-                    if self.tree_state.expanded.contains(path) {
-                        self.tree_state.expanded.remove(path);
-                    } else {
-                        self.tree_state.expanded.insert(path.clone());
-                    }
-                }
+                self.tree_state.toggle_selected();
             }
             _ => {}
         }

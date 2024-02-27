@@ -2,23 +2,23 @@ use std::cmp::Ordering;
 
 use ratatui::widgets::ListState;
 
-pub struct StatefulList<T> {
-    pub state: ListState,
-    pub items: Vec<T>,
+pub trait SelectableList {
+    fn selected(&self) -> Option<usize>;
+
+    fn select(&mut self, index: Option<usize>);
 }
 
-impl<T> StatefulList<T> {
-    pub fn with_items(items: Vec<T>) -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items,
-        }
-    }
+pub trait ListOperations {
+    fn len(&self) -> usize;
 
-    pub fn next(&mut self) {
-        let i = match self.state.selected() {
+    fn selected(&self) -> Option<usize>;
+
+    fn select_inner(&mut self, index: Option<usize>);
+
+    fn next(&mut self) {
+        let i = match self.selected() {
             Some(i) => {
-                if i >= self.items.len() - 1 {
+                if i >= self.len() - 1 {
                     0
                 } else {
                     i + 1
@@ -26,36 +26,78 @@ impl<T> StatefulList<T> {
             }
             None => 0,
         };
-        self.state.select(Some(i));
+        self.select_inner(Some(i));
     }
 
-    pub fn previous(&mut self) {
-        let i = match self.state.selected() {
+    fn previous(&mut self) {
+        let i = match self.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.items.len() - 1
+                    self.len() - 1
                 } else {
                     i - 1
                 }
             }
             None => 0,
         };
-        self.state.select(Some(i));
+        self.select_inner(Some(i));
     }
 
-    pub fn has_selection(&self) -> bool {
-        self.state.selected().is_some()
+    fn has_selection(&self) -> bool {
+        self.selected().is_some()
     }
 
-    pub fn select(&mut self, index: usize) {
-        assert!(index < self.items.len());
-        self.state.select(Some(index));
+    fn select(&mut self, index: usize) {
+        self.select_inner(Some(index))
     }
 
-    pub fn unselect(&mut self) {
-        self.state.select(None);
+    fn unselect(&mut self) {
+        self.select_inner(None);
+    }
+}
+
+pub struct StatefulList<S, T>
+where
+    S: SelectableList,
+{
+    pub state: S,
+    pub items: Vec<T>,
+}
+
+impl SelectableList for ListState {
+    fn selected(&self) -> Option<usize> {
+        self.selected()
     }
 
+    fn select(&mut self, index: Option<usize>) {
+        self.select(index)
+    }
+}
+
+impl<T> StatefulList<ListState, T> {
+    pub fn with_items(items: Vec<T>) -> StatefulList<ListState, T> {
+        StatefulList {
+            state: ListState::default(),
+            items,
+        }
+    }
+}
+
+impl<S: SelectableList, T> ListOperations for StatefulList<S, T> {
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    fn selected(&self) -> Option<usize> {
+        self.state.selected()
+    }
+
+    fn select_inner(&mut self, index: Option<usize>) {
+        self.state.select(index);
+    }
+}
+
+impl<S: SelectableList, T> StatefulList<S, T> {
     pub fn selected_item(&self) -> Option<&T> {
         match self.state.selected() {
             Some(i) => self.items.get(i),
@@ -87,5 +129,27 @@ impl SortOrder {
             SortOrder::Asc => SortOrder::Desc,
             SortOrder::Desc => SortOrder::Asc,
         }
+    }
+}
+
+pub struct DummyList<S>
+where
+    S: SelectableList,
+{
+    pub state: S,
+    pub len: usize,
+}
+
+impl<S: SelectableList> ListOperations for DummyList<S> {
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn selected(&self) -> Option<usize> {
+        self.state.selected()
+    }
+
+    fn select_inner(&mut self, index: Option<usize>) {
+        self.state.select(index);
     }
 }

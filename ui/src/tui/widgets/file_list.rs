@@ -14,7 +14,7 @@ use ratatui::{
     text::Line,
     widgets::{
         block::{Position, Title},
-        List, ListItem,
+        List, ListItem, ListState,
     },
 };
 use threadpool::Builder as ThreadPoolBuilder;
@@ -23,7 +23,10 @@ use core::{analyzer::SourceMappingInfo, discover_files, handle_file};
 
 use crate::{
     keybindings,
-    tui::core::custom_widget::{CustomWidget, RenderContext},
+    tui::core::{
+        custom_widget::{CustomWidget, RenderContext},
+        ListOperations,
+    },
     utils::format_bytes,
 };
 
@@ -172,7 +175,7 @@ impl AnalyzePendingState {
 
 pub struct AnalyzeDoneState {
     pub files_checked: u16,
-    pub file_infos: StatefulList<FileInfoType>,
+    pub file_infos: StatefulList<ListState, FileInfoType>,
     pub sort: FileInfoSort,
     pub sort_order: SortOrder,
 }

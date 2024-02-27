@@ -1,6 +1,6 @@
 use crate::{
     tui::{
-        core::{FocusableWidgetState, HandleEventResult},
+        core::{FocusableWidgetState, HandleEventResult, ListOperations},
         App, FocusableWidget,
     },
     utils::without_relative_part,

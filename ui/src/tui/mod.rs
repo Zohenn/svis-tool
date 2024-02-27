@@ -20,14 +20,16 @@ use crate::theme;
 use self::{
     core::{
         custom_widget::{CustomWidget, RenderContext},
-        FocusableWidgetState, HandleEventResult,
+        FocusableWidgetState, HandleEventResult, ListOperations,
     },
-    widgets::file_list::{AnalyzeState, FileListState},
     widgets::{
-        dialog::DialogContent, file_list::FileListWidget, fps::FpsWidget, mapping_info::FileInfoState,
-        path_input::PathInputWidget,
+        dialog::DialogContent,
+        file_list::{AnalyzeState, FileListState, FileListWidget},
+        fps::FpsWidget,
+        mapping_info::FileInfoState,
+        path_input::{PathInputWidget, PathState},
+        search_dialog::SearchDialogState,
     },
-    widgets::{path_input::PathState, search_dialog::SearchDialogState},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]

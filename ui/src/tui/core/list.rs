@@ -1,11 +1,16 @@
 use std::cmp::Ordering;
 
-use ratatui::widgets::{ListState, TableState};
+use ratatui::{
+    layout::Rect,
+    widgets::{ListState, ScrollbarState, TableState},
+};
 
 pub trait SelectableList {
     fn selected(&self) -> Option<usize>;
 
     fn select(&mut self, index: Option<usize>);
+
+    fn offset(&self) -> usize;
 }
 
 pub trait ListOperations {
@@ -62,6 +67,7 @@ where
 {
     pub state: S,
     pub items: Vec<T>,
+    scrollbar_state: ScrollbarState,
 }
 
 impl SelectableList for ListState {
@@ -71,6 +77,10 @@ impl SelectableList for ListState {
 
     fn select(&mut self, index: Option<usize>) {
         self.select(index)
+    }
+
+    fn offset(&self) -> usize {
+        self.offset()
     }
 }
 
@@ -82,12 +92,17 @@ impl SelectableList for TableState {
     fn select(&mut self, index: Option<usize>) {
         self.select(index)
     }
+
+    fn offset(&self) -> usize {
+        self.offset()
+    }
 }
 
 impl<S: Default + SelectableList, T> StatefulList<S, T> {
     pub fn with_items(items: Vec<T>) -> StatefulList<S, T> {
         StatefulList {
             state: S::default(),
+            scrollbar_state: ScrollbarState::new(items.len()),
             items,
         }
     }
@@ -124,6 +139,15 @@ impl<S: SelectableList, T> StatefulList<S, T> {
                 SortOrder::Desc => result.reverse(),
             }
         });
+    }
+
+    pub fn prepare_scrollbar(&mut self, rect: Rect) -> &mut ScrollbarState {
+        self.scrollbar_state = self
+            .scrollbar_state
+            .content_length(self.items.len() - (rect.height as usize))
+            .position(self.state.offset());
+
+        &mut self.scrollbar_state
     }
 }
 

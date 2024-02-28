@@ -11,9 +11,9 @@ pub fn format_bytes(bytes: u64) -> String {
     let megs = kilos / 1024f64;
 
     if megs > 1f64 {
-        format!("{megs:.2} MiB")
+        format!("{megs:.2} M")
     } else if kilos > 1f64 {
-        format!("{kilos:.2} KiB")
+        format!("{kilos:.2} K")
     } else {
         format!("{bytes} B")
     }

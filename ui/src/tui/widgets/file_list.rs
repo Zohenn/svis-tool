@@ -14,7 +14,7 @@ use ratatui::{
     text::Line,
     widgets::{
         block::{Position, Title},
-        Cell, List, ListItem, ListState, Row, Table, TableState,
+        Cell, Padding, Row, Table, TableState,
     },
 };
 use threadpool::Builder as ThreadPoolBuilder;
@@ -23,9 +23,12 @@ use core::{analyzer::SourceMappingInfo, discover_files, handle_file};
 
 use crate::{
     keybindings,
-    tui::core::{
-        custom_widget::{CustomWidget, RenderContext},
-        ListOperations,
+    tui::{
+        core::{
+            custom_widget::{CustomWidget, RenderContext},
+            ListOperations,
+        },
+        widget_utils::default_scrollbar,
     },
     utils::format_bytes,
 };
@@ -351,7 +354,8 @@ impl CustomWidget for FileListWidget {
                     .collect();
 
                 let label = Line::from(keybindings!("f""ile list"));
-                let mut block = default_block().title(label);
+                // + additional padding for scrollbar
+                let mut block = default_block().title(label).padding(Padding::right(1));
 
                 if has_selection {
                     let title_contents = keybindings!(
@@ -398,6 +402,15 @@ impl CustomWidget for FileListWidget {
                     .block(block)
                     .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
                 frame.render_stateful_widget(file_infos_list, chunks[0], &mut state.file_infos.state);
+
+                frame.render_stateful_widget(
+                    default_scrollbar(),
+                    chunks[0].inner(&Margin {
+                        vertical: 1,
+                        horizontal: 0,
+                    }),
+                    state.file_infos.prepare_scrollbar(chunks[0]),
+                );
 
                 if let Some(item) = state.file_infos.selected_item() {
                     let context = RenderContext::new(app, frame, Some(FocusableWidget::FileInfo));

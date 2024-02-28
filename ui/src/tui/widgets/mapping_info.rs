@@ -15,9 +15,12 @@ use std::ops::Add;
 
 use crate::{
     keybindings,
-    tui::core::{
-        custom_widget::{CustomWidget, RenderContext},
-        ListOperations,
+    tui::{
+        core::{
+            custom_widget::{CustomWidget, RenderContext},
+            ListOperations,
+        },
+        widget_utils::default_scrollbar,
     },
     utils::{format_bytes, format_percentage, without_relative_part},
 };
@@ -251,15 +254,11 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
             rect,
         );
 
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"));
         let mut scrollbar_state =
             ScrollbarState::new(file_info_state.max_scroll() as usize).position(file_info_state.scroll as usize);
 
         frame.render_stateful_widget(
-            scrollbar,
+            default_scrollbar(),
             rect.inner(&Margin {
                 vertical: 1,
                 horizontal: 0,

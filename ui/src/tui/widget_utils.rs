@@ -1,7 +1,7 @@
 use ratatui::{
     prelude::{Alignment, Rect},
     style::Stylize,
-    widgets::{Block, BorderType, Borders, Padding, Paragraph},
+    widgets::{Block, BorderType, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation},
     Frame,
 };
 
@@ -16,6 +16,13 @@ pub fn centered_text(f: &mut Frame, text: &str, rect: Rect) {
 
 pub fn default_block<'a>() -> Block<'a> {
     Block::default().borders(Borders::ALL).border_type(BorderType::Rounded)
+}
+
+pub fn default_scrollbar<'a>() -> Scrollbar<'a> {
+    Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"))
 }
 
 pub trait CustomStyles<'a, T>: Stylize<'a, T> {

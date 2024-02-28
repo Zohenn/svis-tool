@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use ratatui::widgets::ListState;
+use ratatui::widgets::{ListState, TableState};
 
 pub trait SelectableList {
     fn selected(&self) -> Option<usize>;
@@ -74,10 +74,20 @@ impl SelectableList for ListState {
     }
 }
 
-impl<T> StatefulList<ListState, T> {
-    pub fn with_items(items: Vec<T>) -> StatefulList<ListState, T> {
+impl SelectableList for TableState {
+    fn selected(&self) -> Option<usize> {
+        self.selected()
+    }
+
+    fn select(&mut self, index: Option<usize>) {
+        self.select(index)
+    }
+}
+
+impl<S: Default + SelectableList, T> StatefulList<S, T> {
+    pub fn with_items(items: Vec<T>) -> StatefulList<S, T> {
         StatefulList {
-            state: ListState::default(),
+            state: S::default(),
             items,
         }
     }

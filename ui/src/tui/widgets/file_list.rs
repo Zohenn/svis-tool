@@ -14,7 +14,7 @@ use ratatui::{
     text::Line,
     widgets::{
         block::{Position, Title},
-        List, ListItem, ListState,
+        Cell, List, ListItem, ListState, Row, Table, TableState,
     },
 };
 use threadpool::Builder as ThreadPoolBuilder;
@@ -175,7 +175,7 @@ impl AnalyzePendingState {
 
 pub struct AnalyzeDoneState {
     pub files_checked: u16,
-    pub file_infos: StatefulList<ListState, FileInfoType>,
+    pub file_infos: StatefulList<TableState, FileInfoType>,
     pub sort: FileInfoSort,
     pub sort_order: SortOrder,
 }
@@ -316,7 +316,7 @@ impl CustomWidget for FileListWidget {
                     .constraints(constraints.as_ref())
                     .split(rect);
 
-                let file_infos: Vec<ListItem> = state
+                let file_infos: Vec<Row> = state
                     .file_infos
                     .items
                     .iter()
@@ -325,20 +325,28 @@ impl CustomWidget for FileListWidget {
                             FileInfoType::Info(info) => &info.source_mapping.file_name,
                             FileInfoType::Err(error_info) => &error_info.file_name,
                         };
-                        let mut content = vec!["./".into(), file_name.into(), " ".into()];
+                        let mut cells: Vec<Cell> = vec![Line::from(vec!["./".into(), file_name.into()]).into()];
 
                         if let FileInfoType::Info(info) = info {
-                            content.push(format_bytes(info.source_mapping.actual_source_file_len()).highlight());
-                            content.extend([
-                                " (".into(),
-                                info.info_by_file.len().to_string().highlight2(),
-                                " files".highlight2(),
-                                ")".into(),
-                            ]);
+                            cells.push(
+                                format_bytes(info.source_mapping.actual_source_file_len())
+                                    .highlight()
+                                    .to_right_aligned_line()
+                                    .into(),
+                            );
+                            cells.push(
+                                info.info_by_file
+                                    .len()
+                                    .to_string()
+                                    .highlight2()
+                                    .to_right_aligned_line()
+                                    .into(),
+                            );
                         } else {
-                            content.push("!".error());
+                            cells.push("!".error().to_right_aligned_line().into());
                         }
-                        ListItem::new(Line::from(content))
+
+                        Row::new(cells)
                     })
                     .collect();
 
@@ -375,9 +383,18 @@ impl CustomWidget for FileListWidget {
                     block = block.border_style(Style::default().yellow());
                 }
 
+                let table_widths = [Constraint::Fill(1), Constraint::Length(10), Constraint::Length(10)];
+                let table_header = Row::new(vec![
+                    "name".into(),
+                    Span::from("size").to_right_aligned_line(),
+                    Span::from("no. files").to_right_aligned_line(),
+                ])
+                .style(Style::new().bold());
+
                 let (app, frame) = context.app_frame_mut();
 
-                let file_infos_list = List::new(file_infos)
+                let file_infos_list = Table::new(file_infos, table_widths)
+                    .header(table_header)
                     .block(block)
                     .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
                 frame.render_stateful_widget(file_infos_list, chunks[0], &mut state.file_infos.state);

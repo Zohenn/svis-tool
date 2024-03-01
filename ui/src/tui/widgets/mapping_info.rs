@@ -10,8 +10,8 @@ use ratatui::{
     },
 };
 
-use core::analyzer::SourceMappingFileInfo;
-use std::ops::Add;
+use core::analyzer::{SourceMappingFileInfo, SourceMappingInfo};
+use std::{ops::Add, rc::Rc};
 
 use crate::{
     keybindings,
@@ -94,30 +94,8 @@ impl CustomWidget for TreeInfoWidget<'_> {
 
         let mapping = &info.source_mapping;
         let source_file_len = mapping.actual_source_file_len();
-        let aggregator_source_file_len = source_file_len;
 
-        // TODO: try not to create the tree from scratch on every render
-        let tree = Tree::from((0..info.info_by_file.len()).collect::<Vec<_>>(), |index| {
-            without_relative_part(info.get_file_name(info.info_by_file[*index].file)).to_owned()
-        })
-        .with_aggregator::<TreeAggregation>(
-            info.info_by_file
-                .iter()
-                .map(|file_info| TreeAggregation {
-                    bytes: file_info.bytes as u64,
-                })
-                .collect::<Vec<_>>()
-                .as_slice(),
-            |leaf_aggregations, index| leaf_aggregations[*index],
-            move |aggregation| {
-                vec![
-                    format_bytes(aggregation.bytes).highlight(),
-                    " (".into(),
-                    format_percentage(aggregation.bytes, aggregator_source_file_len).highlight2(),
-                    ") ".into(),
-                ]
-            },
-        );
+        let tree = file_info_state.build_tree(info);
 
         let list_items = tree.as_list_items(&mut file_info_state.tree_state, |index| {
             let file_info = &info.info_by_file[*index];
@@ -293,6 +271,7 @@ pub enum FileInfoViewType {
 pub struct FileInfoState {
     pub view_type: FileInfoViewType,
     pub tree_state: TreeState,
+    tree: Option<Rc<Tree<usize, TreeAggregation>>>,
     // paragraph state
     pub scroll: u16,
     pub text_height: u16,
@@ -303,6 +282,39 @@ impl FileInfoState {
     fn max_scroll(&self) -> u16 {
         self.text_height.saturating_sub(self.max_height)
     }
+
+    fn build_tree(&mut self, info: &SourceMappingInfo) -> Rc<Tree<usize, TreeAggregation>> {
+        self.tree
+            .get_or_insert_with(|| {
+                let mapping = &info.source_mapping;
+                let source_file_len = mapping.actual_source_file_len();
+                let aggregator_source_file_len = source_file_len;
+
+                Tree::from((0..info.info_by_file.len()).collect::<Vec<_>>(), |index| {
+                    without_relative_part(info.get_file_name(info.info_by_file[*index].file)).to_owned()
+                })
+                .with_aggregator::<TreeAggregation>(
+                    info.info_by_file
+                        .iter()
+                        .map(|file_info| TreeAggregation {
+                            bytes: file_info.bytes as u64,
+                        })
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                    |leaf_aggregations, index| leaf_aggregations[*index],
+                    move |aggregation| {
+                        vec![
+                            format_bytes(aggregation.bytes).highlight(),
+                            " (".into(),
+                            format_percentage(aggregation.bytes, aggregator_source_file_len).highlight2(),
+                            ") ".into(),
+                        ]
+                    },
+                )
+                .into()
+            })
+            .clone()
+    }
 }
 
 impl Default for FileInfoState {
@@ -310,11 +322,12 @@ impl Default for FileInfoState {
         let tree_state = TreeState::default().initial_expansion_depth(2);
 
         Self {
+            view_type: FileInfoViewType::Tree,
+            tree: None,
+            tree_state,
             scroll: 0,
             text_height: 0,
             max_height: 0,
-            tree_state,
-            view_type: FileInfoViewType::Tree,
         }
     }
 }

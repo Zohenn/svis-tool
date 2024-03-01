@@ -97,13 +97,18 @@ impl CustomWidget for TreeInfoWidget<'_> {
         let aggregator_source_file_len = source_file_len;
 
         // TODO: try not to create the tree from scratch on every render
-        let tree = Tree::from(info.info_by_file.iter().collect::<Vec<_>>(), |item| {
-            without_relative_part(info.get_file_name(item.file))
+        let tree = Tree::from((0..info.info_by_file.len()).collect::<Vec<_>>(), |index| {
+            without_relative_part(info.get_file_name(info.info_by_file[*index].file)).to_owned()
         })
-        .with_aggregator(
-            |info| TreeAggregation {
-                bytes: info.bytes as u64,
-            },
+        .with_aggregator::<TreeAggregation>(
+            info.info_by_file
+                .iter()
+                .map(|file_info| TreeAggregation {
+                    bytes: file_info.bytes as u64,
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+            |leaf_aggregations, index| leaf_aggregations[*index],
             move |aggregation| {
                 vec![
                     format_bytes(aggregation.bytes).highlight(),
@@ -114,7 +119,8 @@ impl CustomWidget for TreeInfoWidget<'_> {
             },
         );
 
-        let list_items = tree.as_list_items(&mut file_info_state.tree_state, |file_info| {
+        let list_items = tree.as_list_items(&mut file_info_state.tree_state, |index| {
+            let file_info = &info.info_by_file[*index];
             vec![
                 without_relative_part(info.get_file_name(file_info.file))
                     .split('/')

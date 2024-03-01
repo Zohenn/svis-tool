@@ -158,7 +158,7 @@ impl Add for NoAggregation {
 }
 
 impl<D: Debug> Tree<D, NoAggregation> {
-    pub fn from(items: Vec<D>, get_path: impl Fn(&D) -> &str) -> Self {
+    pub fn from(items: Vec<D>, get_path: impl Fn(&D) -> String) -> Self {
         let mut root_node: TreeNode<D> = TreeNode {
             location: TreeLocation::new("", String::new()),
             children: BTreeMap::new(),
@@ -202,7 +202,7 @@ impl<D: Debug> Tree<D, NoAggregation> {
                     r#type: TreeItemType::Leaf,
                 },
                 TreeItem::Leaf(TreeLeaf {
-                    location: TreeLocation::new(leaf, path.to_owned()),
+                    location: TreeLocation::new(leaf, path),
                     data: item,
                 }),
             );
@@ -217,10 +217,11 @@ impl<D: Debug> Tree<D, NoAggregation> {
 
     pub fn with_aggregator<A: Add<Output = A> + Copy>(
         self,
-        aggregator: impl Fn(&D) -> A + 'static,
+        leaf_aggregations: &[A],
+        aggregator: impl Fn(&[A], &D) -> A,
         aggregation_mapper: impl Fn(&A) -> Vec<Span> + 'static,
     ) -> Tree<D, A> {
-        let aggregated_data = aggregate(&self.items, aggregator);
+        let aggregated_data = aggregate(&self.items, leaf_aggregations, aggregator);
         Tree {
             items: self.items,
             aggregated_data,
@@ -230,7 +231,11 @@ impl<D: Debug> Tree<D, NoAggregation> {
 }
 
 impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
-    pub fn as_list_items(&self, state: &mut TreeState, data_mapper: impl Fn(&D) -> Vec<Span>) -> Vec<ListItem> {
+    pub fn as_list_items<'tree>(
+        &'tree self,
+        state: &mut TreeState,
+        data_mapper: impl Fn(&D) -> Vec<Span<'tree>>,
+    ) -> Vec<ListItem> {
         let mut paths = vec![];
         let mut items = vec![];
 
@@ -302,32 +307,34 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
 
 fn aggregate<D: Debug, A: Add<Output = A> + Copy>(
     tree_item: &TreeItem<D>,
-    aggregator: impl Fn(&D) -> A,
+    leaf_aggregations: &[A],
+    aggregator: impl Fn(&[A], &D) -> A,
 ) -> HashMap<String, A> {
     let mut aggregated_data: HashMap<String, A> = HashMap::new();
 
-    aggregate_inner(tree_item, &aggregator, &mut aggregated_data);
+    aggregate_inner(tree_item, leaf_aggregations, &aggregator, &mut aggregated_data);
 
     aggregated_data
 }
 
 fn aggregate_inner<D: Debug, A: Add<Output = A> + Copy>(
     tree_item: &TreeItem<D>,
-    aggregator: &impl Fn(&D) -> A,
+    leaf_aggregations: &[A],
+    aggregator: &impl Fn(&[A], &D) -> A,
     aggregated_data: &mut HashMap<String, A>,
 ) -> A {
     match tree_item {
         TreeItem::Node(node) => {
             let mut iter = node.children.values();
-            let mut aggregation = aggregate_inner(iter.next().unwrap(), aggregator, aggregated_data);
+            let mut aggregation = aggregate_inner(iter.next().unwrap(), leaf_aggregations, aggregator, aggregated_data);
 
             for child in iter {
-                aggregation = aggregation + aggregate_inner(child, aggregator, aggregated_data);
+                aggregation = aggregation + aggregate_inner(child, leaf_aggregations, aggregator, aggregated_data);
             }
 
             aggregated_data.insert(node.location.path.clone(), aggregation);
             aggregation
         }
-        TreeItem::Leaf(leaf) => aggregator(&leaf.data),
+        TreeItem::Leaf(leaf) => aggregator(leaf_aggregations, &leaf.data),
     }
 }

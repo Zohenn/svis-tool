@@ -23,6 +23,7 @@ use core::{analyzer::SourceMappingInfo, discover_files, handle_file};
 
 use crate::{
     keybindings,
+    theme::FOCUS,
     tui::{
         core::{
             custom_widget::{CustomWidget, RenderContext},
@@ -122,6 +123,10 @@ impl FocusableWidgetState for FileListState {
                     state.sort(FileInfoSort::Name);
                     return HandleEventResult::Callback(Box::new(Self::callback));
                 }
+                KeyCode::Char('o') => {
+                    state.sort(FileInfoSort::NoFiles);
+                    return HandleEventResult::Callback(Box::new(Self::callback));
+                }
                 KeyCode::Char('f') => return HandleEventResult::ChangeFocus(FocusableWidget::SearchDialog),
                 KeyCode::Enter => return HandleEventResult::ChangeFocus(FocusableWidget::FileInfo),
                 _ => {}
@@ -210,6 +215,7 @@ impl AnalyzeDoneState {
         let sort_function = match self.sort {
             FileInfoSort::Size => Self::sort_by_size,
             FileInfoSort::Name => Self::sort_by_name,
+            FileInfoSort::NoFiles => Self::sort_by_no_files,
         };
 
         self.file_infos.sort(sort_function, self.sort_order);
@@ -221,9 +227,7 @@ impl AnalyzeDoneState {
                 .source_mapping
                 .actual_source_file_len()
                 .cmp(&b.source_mapping.actual_source_file_len()),
-            (FileInfoType::Info(_), FileInfoType::Err(_)) => CmpOrdering::Greater,
-            (FileInfoType::Err(_), FileInfoType::Info(_)) => CmpOrdering::Less,
-            (FileInfoType::Err(_), FileInfoType::Err(_)) => CmpOrdering::Equal,
+            (_, _) => Self::base_sort(a, b),
         }
     }
 
@@ -234,6 +238,22 @@ impl AnalyzeDoneState {
         });
 
         values[0].cmp(values[1])
+    }
+
+    fn sort_by_no_files(a: &FileInfoType, b: &FileInfoType) -> CmpOrdering {
+        match (a, b) {
+            (FileInfoType::Info(a), FileInfoType::Info(b)) => a.info_by_file.len().cmp(&b.info_by_file.len()),
+            (_, _) => Self::base_sort(a, b),
+        }
+    }
+
+    fn base_sort(a: &FileInfoType, b: &FileInfoType) -> CmpOrdering {
+        match (a, b) {
+            (FileInfoType::Info(_), FileInfoType::Err(_)) => CmpOrdering::Greater,
+            (FileInfoType::Err(_), FileInfoType::Info(_)) => CmpOrdering::Less,
+            (FileInfoType::Err(_), FileInfoType::Err(_)) => CmpOrdering::Equal,
+            (_, _) => unreachable!(),
+        }
     }
 }
 
@@ -266,6 +286,7 @@ impl SourceMappingErrorInfo {
 pub enum FileInfoSort {
     Size,
     Name,
+    NoFiles,
 }
 
 pub struct FileListWidget;
@@ -362,7 +383,7 @@ impl CustomWidget for FileListWidget {
                         "↑↓ jk"" select ";
                         "|".dark_gray(),
                         " sort: ".white();,
-                        "s""ize, ", "n""ame ";
+                        "s""ize, ", "n""ame, n", "o"". files";
                         "| ".dark_gray();,
                         "f""ind source file"
                     );
@@ -384,7 +405,7 @@ impl CustomWidget for FileListWidget {
                 }
 
                 if is_focused {
-                    block = block.border_style(Style::default().yellow());
+                    block = block.border_style(Style::default().fg(FOCUS));
                 }
 
                 let table_widths = [Constraint::Fill(1), Constraint::Length(10), Constraint::Length(10)];

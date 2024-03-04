@@ -6,9 +6,12 @@ use ratatui::{
 };
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use crate::tui::{
-    core::{FocusableWidgetState, HandleEventResult},
-    widget_utils::default_block,
+use crate::{
+    theme::FOCUS,
+    tui::{
+        core::{FocusableWidgetState, HandleEventResult},
+        widget_utils::default_block,
+    },
 };
 
 #[derive(Default)]
@@ -99,7 +102,7 @@ impl StatefulWidget for InputWidget<'_> {
 
         let input = Paragraph::new(state.input.value())
             .style(match self.is_focused {
-                true => Style::default().fg(Color::Yellow),
+                true => Style::default().fg(FOCUS),
                 false => Style::default(),
             })
             .scroll((0, state.scroll as u16))

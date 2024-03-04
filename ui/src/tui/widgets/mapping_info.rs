@@ -15,6 +15,7 @@ use std::{ops::Add, rc::Rc};
 
 use crate::{
     keybindings,
+    theme::FOCUS,
     tui::{
         core::{
             custom_widget::{CustomWidget, RenderContext},
@@ -256,7 +257,7 @@ fn get_block<'a>(is_focused: bool) -> Block<'a> {
     let mut block = default_block();
     if is_focused {
         block = block
-            .border_style(Style::default().yellow())
+            .border_style(Style::default().fg(FOCUS))
             .title(Title::from(Line::from(keybindings!("t""ree toggle"))).position(Position::Bottom));
     }
 

@@ -1,9 +1,11 @@
 use ratatui::{
     prelude::{Alignment, Rect},
-    style::Stylize,
+    style::{Style, Stylize},
     widgets::{Block, BorderType, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation},
     Frame,
 };
+
+use crate::theme::{ERROR, FOCUS, HIGHLIGHT, HIGHLIGHT2, TEXT};
 
 pub fn centered_text(f: &mut Frame, text: &str, rect: Rect) {
     f.render_widget(
@@ -15,7 +17,10 @@ pub fn centered_text(f: &mut Frame, text: &str, rect: Rect) {
 }
 
 pub fn default_block<'a>() -> Block<'a> {
-    Block::default().borders(Borders::ALL).border_type(BorderType::Rounded)
+    Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(TEXT))
 }
 
 pub fn default_scrollbar<'a>() -> Scrollbar<'a> {
@@ -27,19 +32,19 @@ pub fn default_scrollbar<'a>() -> Scrollbar<'a> {
 
 pub trait CustomStyles<'a, T>: Stylize<'a, T> {
     fn highlight(self) -> T {
-        self.cyan()
+        self.fg(HIGHLIGHT)
     }
 
     fn highlight2(self) -> T {
-        self.green()
+        self.fg(HIGHLIGHT2)
     }
 
     fn error(self) -> T {
-        self.red()
+        self.fg(ERROR)
     }
 
     fn key(self) -> T {
-        self.yellow()
+        self.fg(FOCUS)
     }
 }
 

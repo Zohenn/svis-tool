@@ -19,6 +19,7 @@ use crate::{
     tui::{
         core::{
             custom_widget::{CustomWidget, RenderContext},
+            tree::TreeItem,
             ListOperations,
         },
         widget_utils::default_scrollbar,
@@ -256,9 +257,12 @@ impl CustomWidget for ParagraphInfoWidget<'_> {
 fn get_block<'a>(is_focused: bool) -> Block<'a> {
     let mut block = default_block();
     if is_focused {
-        block = block
-            .border_style(Style::default().fg(FOCUS))
-            .title(Title::from(Line::from(keybindings!("t""ree toggle"))).position(Position::Bottom));
+        block = block.border_style(Style::default().fg(FOCUS)).title(
+            Title::from(Line::from(
+                keybindings!("<Enter>"" toggle"; " | ".dark_gray();, "e""xpand descendants"; " | ".dark_gray();, "t""ree toggle"),
+            ))
+            .position(Position::Bottom),
+        );
     }
 
     block
@@ -374,6 +378,29 @@ impl FileInfoState {
             }
             KeyCode::Enter => {
                 self.tree_state.toggle_selected();
+            }
+            KeyCode::Char('e') => {
+                let Some(tree) = self.tree.as_ref().cloned() else {
+                    return;
+                };
+
+                let path = self.tree_state.selected_path();
+                let Some(TreeItem::Node(node)) = tree.get_item_by_path(path) else {
+                    return;
+                };
+
+                let mut paths_to_toggle = vec![node.location.path.as_str()];
+                paths_to_toggle.append(&mut tree.get_node_descendant_paths(node));
+
+                let expand = !self.tree_state.is_selected_expanded();
+
+                for path in paths_to_toggle {
+                    if expand {
+                        self.tree_state.expanded.insert(path.to_owned());
+                    } else {
+                        self.tree_state.expanded.remove(path);
+                    }
+                }
             }
             _ => {}
         }

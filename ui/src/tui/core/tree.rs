@@ -49,6 +49,18 @@ impl TreeState {
         }
     }
 
+    pub fn selected_path(&self) -> &str {
+        &self.paths[self.selected().unwrap_or(0)]
+    }
+
+    pub fn is_expanded(&self, path: &str) -> bool {
+        self.expanded.contains(path)
+    }
+
+    pub fn is_selected_expanded(&self) -> bool {
+        self.is_expanded(self.selected_path())
+    }
+
     pub fn toggle_selected(&mut self) {
         let path = &self.paths[self.selected().unwrap_or(0)];
 
@@ -114,8 +126,8 @@ impl Ord for TreeNodeChildKey {
 
 #[derive(Debug)]
 pub struct TreeLocation {
-    key: CompactString,
-    path: String,
+    pub key: CompactString,
+    pub path: String,
 }
 
 impl TreeLocation {
@@ -129,13 +141,13 @@ impl TreeLocation {
 
 #[derive(Debug)]
 pub struct TreeNode<D: Debug> {
-    location: TreeLocation,
+    pub location: TreeLocation,
     children: BTreeMap<TreeNodeChildKey, TreeItem<D>>,
 }
 
 #[derive(Debug)]
 pub struct TreeLeaf<D: Debug> {
-    location: TreeLocation,
+    pub location: TreeLocation,
     data: D,
 }
 
@@ -231,6 +243,17 @@ impl<D: Debug> Tree<D, NoAggregation> {
 }
 
 impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
+    fn prepare_traversal_vec_deque(&self) -> VecDeque<(u8, &TreeItem<D>)> {
+        let mut queue: VecDeque<(u8, &TreeItem<D>)> = VecDeque::new();
+
+        match &self.items {
+            TreeItem::Node(node) => queue.extend(node.children.values().rev().map(|child| (0, child))),
+            TreeItem::Leaf(_) => queue.push_back((0, &self.items)),
+        }
+
+        queue
+    }
+
     pub fn as_list_items<'tree>(
         &'tree self,
         state: &mut TreeState,
@@ -302,6 +325,55 @@ impl<D: Debug, A: Add<Output = A> + Copy> Tree<D, A> {
         state.paths = paths;
 
         items
+    }
+
+    pub fn get_item_by_path(&self, path: &str) -> Option<&TreeItem<D>> {
+        let mut queue = self.prepare_traversal_vec_deque();
+
+        while let Some((depth, tree_item)) = queue.pop_back() {
+            match tree_item {
+                TreeItem::Node(child_node) => {
+                    if child_node.location.path == path {
+                        return Some(tree_item);
+                    }
+
+                    for child in child_node.children.values().rev() {
+                        queue.push_back((depth + 1, child));
+                    }
+                }
+                TreeItem::Leaf(leaf) => {
+                    if leaf.location.path == path {
+                        return Some(tree_item);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn get_node_descendant_paths<'tree>(&'tree self, node: &'tree TreeNode<D>) -> Vec<&'tree str> {
+        let mut descendants = vec![];
+
+        let mut queue = VecDeque::new();
+        queue.extend(node.children.values());
+
+        while let Some(tree_item) = queue.pop_back() {
+            match tree_item {
+                TreeItem::Node(child_node) => {
+                    descendants.push(child_node.location.path.as_str());
+
+                    for child in child_node.children.values().rev() {
+                        queue.push_back(child);
+                    }
+                }
+                TreeItem::Leaf(leaf) => {
+                    descendants.push(&leaf.location.path);
+                }
+            }
+        }
+
+        descendants
     }
 }
 
